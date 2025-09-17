@@ -13,6 +13,7 @@ pkgs.mkShell {
     python3Packages.pandas
     python3Packages.sqlalchemy
     python3Packages.python-dotenv
+    python3Packages.python-multipart
   ];
 
   shellHook = ''
