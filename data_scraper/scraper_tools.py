@@ -1,7 +1,5 @@
-import os
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from urllib.parse import urljoin
 from contextlib import contextmanager
 import pandas as pd
@@ -9,33 +7,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import pytz
 
-load_dotenv()
-
-LOGIN_URL = os.getenv("LOGIN_URL")
-POS_URL = os.getenv("POS_URL")
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
-
 EXCLUDED_LINES = [
     "IMPORTE",
     "FLETE"
 ]
 
-def build_login_payload():
+def build_login_payload(username, password):
     """Build the payload for the login form."""
     payload = {
-        "uid": USERNAME,
-        "pass": PASSWORD,
+        "uid": username,
+        "pass": password,
         "ok": "1"
     }
     return payload
 
 @contextmanager
-def authenticated_session():
+def authenticated_session(login_url, username, password):
     """Context manager for an authenticated session."""
     session = requests.Session()
-    payload = build_login_payload()
-    response = session.post(LOGIN_URL, data=payload)
+    payload = build_login_payload(username, password)
+    response = session.post(login_url, data=payload)
     if not response.ok:
         raise Exception("Login failed")
     try:
@@ -47,9 +38,9 @@ def full_url(base_url: str, relative_path: str):
     """Generate full URL from base URL and relative path."""
     return urljoin(base_url, relative_path)
 
-def get_available_stores(session):
+def get_available_stores(session, pos_url):
     """Return a list of available store names and their links from the store selection page."""
-    store_page_url = full_url(POS_URL, '?modulo=pdv&accion=tienda')
+    store_page_url = full_url(pos_url, '?modulo=pdv&accion=tienda')
     response = session.get(store_page_url)
     if not response.ok:
         raise Exception("Failed to fetch store selection page")
@@ -62,9 +53,9 @@ def get_available_stores(session):
             stores.append({"name": store_name, "href": store_href})
     return stores
 
-def select_store(session, store_name: str):
+def select_store(session, store_name: str, pos_url):
     """Find the store link for the given store name, and return the response after selecting the store."""
-    store_page_url = full_url(POS_URL, '?modulo=pdv&accion=tienda')
+    store_page_url = full_url(pos_url, '?modulo=pdv&accion=tienda')
     response = session.get(store_page_url)
     if not response.ok:
         raise Exception("Failed to fetch store selection page")
@@ -76,16 +67,16 @@ def select_store(session, store_name: str):
             break
     if not store_link:
         raise Exception(f"Store '{store_name}' not found on the page")
-    select_url = full_url(POS_URL, store_link)
+    select_url = full_url(pos_url, store_link)
     select_response = session.get(select_url)
     if select_response.ok:
         return select_response
     else:
         raise Exception(f"Failed to select store '{store_name}'")
 
-def get_product_lines(session, store_name: str):
+def get_product_lines(session, store_name: str, pos_url):
     """Return a list of product lines for the selected store, excluding unwanted lines, only from panel_lineas div."""
-    response = select_store(session, store_name)
+    response = select_store(session, store_name, pos_url)
     soup = BeautifulSoup(response.text, "html.parser")
     product_lines = []
     panel_lineas = soup.find('div', class_='panel_lineas')
@@ -99,9 +90,9 @@ def get_product_lines(session, store_name: str):
                 })
     return product_lines
 
-def get_article_panel(session, relative_href: str):
+def get_article_panel(session, relative_href: str, pos_url):
     """Generic function to extract <a> tags from <div class=panel_articulos> for any given page."""
-    url = full_url(POS_URL, relative_href)
+    url = full_url(pos_url, relative_href)
     response = session.get(url)
     if not response.ok:
         raise Exception(f"Failed to fetch page: {relative_href}")
@@ -116,15 +107,15 @@ def get_article_panel(session, relative_href: str):
                 items.append({"name": text, "href": href})
     return items
 
-def get_dataframe(session, store_name: str, max_threads: int = 28):
+def get_dataframe(session, store_name: str, pos_url, max_threads: int = 28):
     """Scrape all products for a store using multithreading and return a pandas DataFrame."""
     all_products = []
-    product_lines = get_product_lines(session, store_name)
+    product_lines = get_product_lines(session, store_name, pos_url)
     # Use 4 threads per line
     num_threads = min(len(product_lines) * 4, max_threads)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         article_futures = {
-            executor.submit(get_article_panel, session, line['href']): line['name']
+            executor.submit(get_article_panel, session, line['href'], pos_url): line['name']
             for line in product_lines
         }
         for future in as_completed(article_futures):
@@ -136,7 +127,7 @@ def get_dataframe(session, store_name: str, max_threads: int = 28):
             # Thread pool for presentations per article
             with ThreadPoolExecutor(max_workers=4) as pres_executor:
                 pres_futures = {
-                    pres_executor.submit(get_article_panel, session, article['href']): article['name']
+                    pres_executor.submit(get_article_panel, session, article['href'], pos_url): article['name']
                     for article in articles
                 }
                 for pres_future in as_completed(pres_futures):
@@ -148,7 +139,7 @@ def get_dataframe(session, store_name: str, max_threads: int = 28):
                     # Thread pool for stock per presentation
                     with ThreadPoolExecutor(max_workers=4) as stock_executor:
                         stock_futures = {
-                            stock_executor.submit(get_article_panel, session, presentation['href']): presentation['name']
+                            stock_executor.submit(get_article_panel, session, presentation['href'], pos_url): presentation['name']
                             for presentation in presentations
                         }
                         for stock_future in as_completed(stock_futures):
@@ -179,3 +170,4 @@ def save_dataframe_to_csv(df, store_name, filename=None):
         filename = f"inv_{safe_store}_{date_str}_{time_str}.csv"
     df.to_csv(filename, index=False)
     print(f"DataFrame saved to {filename}")
+    return filename
