@@ -1,12 +1,13 @@
 # app/main.py
 import os
-from fastapi import FastAPI, Form, Query, Request, Response
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from fastapi import FastAPI, Form, Query, Request, Response
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.templating import Jinja2Templates
 
 from data_scraper.scraper_tools import authenticated_session, get_available_stores, get_dataframe, save_dataframe_to_csv
 
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Jinja2 templates setup
+templates = Jinja2Templates(directory="templates")
+
 scrape_status = {
     "last_scrape": None,
     "success": None,
@@ -38,6 +42,10 @@ scrape_status = {
 
 last_scraped_df = None
 last_scraped_store_name = None
+
+@app.get("/login")
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
