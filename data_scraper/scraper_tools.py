@@ -4,6 +4,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from urllib.parse import urljoin
 from contextlib import contextmanager
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -90,10 +92,83 @@ def get_product_lines(session, store_name: str):
                 })
     return product_lines
 
+def get_article_panel(session, relative_href: str):
+    """Generic function to extract <a> tags from <div class=panel_articulos> for any given page."""
+    url = full_url(POS_URL, relative_href)
+    response = session.get(url)
+    if not response.ok:
+        raise Exception(f"Failed to fetch page: {relative_href}")
+    soup = BeautifulSoup(response.text, "html.parser")
+    panel_articulos = soup.find('div', class_='panel_articulos')
+    items = []
+    if panel_articulos:
+        for a in panel_articulos.find_all('a'):
+            text = a.text.strip()
+            href = a.get('href')
+            if text:
+                items.append({"name": text, "href": href})
+    return items
+
+def get_dataframe(session, store_name: str, max_threads: int = 28):
+    """Scrape all products for a store using multithreading and return a pandas DataFrame."""
+    all_products = []
+    product_lines = get_product_lines(session, store_name)
+    # Use 4 threads per line
+    num_threads = min(len(product_lines) * 4, max_threads)
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        article_futures = {
+            executor.submit(get_article_panel, session, line['href']): line['name']
+            for line in product_lines
+        }
+        for future in as_completed(article_futures):
+            line_name = article_futures[future]
+            try:
+                articles = future.result()
+            except Exception:
+                continue
+            # Thread pool for presentations per article
+            with ThreadPoolExecutor(max_workers=4) as pres_executor:
+                pres_futures = {
+                    pres_executor.submit(get_article_panel, session, article['href']): article['name']
+                    for article in articles
+                }
+                for pres_future in as_completed(pres_futures):
+                    article_name = pres_futures[pres_future]
+                    try:
+                        presentations = pres_future.result()
+                    except Exception:
+                        continue
+                    # Thread pool for stock per presentation
+                    with ThreadPoolExecutor(max_workers=4) as stock_executor:
+                        stock_futures = {
+                            stock_executor.submit(get_article_panel, session, presentation['href']): presentation['name']
+                            for presentation in presentations
+                        }
+                        for stock_future in as_completed(stock_futures):
+                            presentation_name = stock_futures[stock_future]
+                            try:
+                                stock_list = stock_future.result()
+                            except Exception:
+                                continue
+                            for stock in stock_list:
+                                all_products.append({
+                                    "line": line_name,
+                                    "name": article_name,
+                                    "presentation": presentation_name,
+                                    "stock": stock['name']
+                                })
+    # Remove duplicates
+    df = pd.DataFrame(all_products).drop_duplicates()
+    return df
+
+def save_dataframe_to_csv(df, filename="inventory.csv"):
+    """Save the DataFrame to a CSV file."""
+    df.to_csv(filename, index=False)
+    print(f"DataFrame saved to {filename}")
+
 if __name__ == "__main__":
-    # Example usage of get_product_lines
     with authenticated_session() as session:
         store_name = "11 DE JULIO"
-        product_lines = get_product_lines(session, store_name)
-        for line in product_lines:
-            print(f"Product Line: {line['name']}, Link: {line['href']}")
+        df = get_dataframe(session, store_name)
+        save_dataframe_to_csv(df)
+        print("DONE")
