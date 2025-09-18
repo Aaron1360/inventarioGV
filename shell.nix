@@ -14,6 +14,7 @@ pkgs.mkShell {
     python3Packages.sqlalchemy
     python3Packages.python-dotenv
     python3Packages.python-multipart
+    python3Packages.pytz
   ];
 
   shellHook = ''
@@ -27,7 +28,6 @@ pkgs.mkShell {
     echo "lxml version: $(python -c 'import lxml; print(lxml.__version__)')"
     echo "pandas version: $(python -c 'import pandas; print(pandas.__version__)')"
     echo "SQLAlchemy version: $(python -c 'import sqlalchemy; print(sqlalchemy.__version__)')"
-    echo "python-dotenv version: $(python -c 'import dotenv; print(dotenv.__version__)')"
     echo ""
     echo "Note: For exact package versions, run 'pip install -r requirements.txt' inside this shell."
     echo "You can now use FastAPI, uvicorn, jinja2, requests, beautifulsoup4, lxml, pandas, SQLAlchemy, and python-dotenv for web development and scraping."

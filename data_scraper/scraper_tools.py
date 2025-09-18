@@ -6,6 +6,8 @@ from urllib.parse import urljoin
 from contextlib import contextmanager
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+import pytz
 
 load_dotenv()
 
@@ -44,16 +46,21 @@ def authenticated_session():
 def full_url(base_url: str, relative_path: str):
     """Generate full URL from base URL and relative path."""
     return urljoin(base_url, relative_path)
-    
-def save_html_from_link(session, link: str, filename: str):
-    """Access the page at the given link (relative to POS_URL), and save its HTML content."""
-    url = full_url(POS_URL, link)
-    response = session.get(url)
-    if response.ok:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-    else:
-        raise Exception(f"Failed to fetch page for link: {link}")
+
+def get_available_stores(session):
+    """Return a list of available store names and their links from the store selection page."""
+    store_page_url = full_url(POS_URL, '?modulo=pdv&accion=tienda')
+    response = session.get(store_page_url)
+    if not response.ok:
+        raise Exception("Failed to fetch store selection page")
+    soup = BeautifulSoup(response.text, "html.parser")
+    stores = []
+    for a in soup.find_all('a'):
+        store_name = a.text.strip()
+        store_href = a.get('href')
+        if store_name and store_href:
+            stores.append({"name": store_name, "href": store_href})
+    return stores
 
 def select_store(session, store_name: str):
     """Find the store link for the given store name, and return the response after selecting the store."""
@@ -161,14 +168,14 @@ def get_dataframe(session, store_name: str, max_threads: int = 28):
     df = pd.DataFrame(all_products).drop_duplicates()
     return df
 
-def save_dataframe_to_csv(df, filename="inventory.csv"):
-    """Save the DataFrame to a CSV file."""
+def save_dataframe_to_csv(df, store_name, filename=None):
+    """Save the DataFrame to a CSV file with the format inv_{store_name}_{date}_{time}.csv using America/Mexico_City timezone."""
+    tz = pytz.timezone("America/Mexico_City")
+    now = datetime.now(tz)
+    date_str = now.strftime('%Y%m%d')
+    time_str = now.strftime('%H%M%S')
+    safe_store = store_name.replace(' ', '_').replace('/', '_')
+    if filename is None:
+        filename = f"inv_{safe_store}_{date_str}_{time_str}.csv"
     df.to_csv(filename, index=False)
     print(f"DataFrame saved to {filename}")
-
-if __name__ == "__main__":
-    with authenticated_session() as session:
-        store_name = "11 DE JULIO"
-        df = get_dataframe(session, store_name)
-        save_dataframe_to_csv(df)
-        print("DONE")
