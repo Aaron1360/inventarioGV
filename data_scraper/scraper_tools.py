@@ -12,6 +12,11 @@ POS_URL = os.getenv("POS_URL")
 USERNAME = os.getenv("USERNAME")
 PASSWORD = os.getenv("PASSWORD")
 
+EXCLUDED_LINES = [
+    "IMPORTE",
+    "FLETE"
+]
+
 def build_login_payload():
     """Build the payload for the login form."""
     payload = {
@@ -69,12 +74,26 @@ def select_store(session, store_name: str):
     else:
         raise Exception(f"Failed to select store '{store_name}'")
 
+def get_product_lines(session, store_name: str):
+    """Return a list of product lines for the selected store, excluding unwanted lines, only from panel_lineas div."""
+    response = select_store(session, store_name)
+    soup = BeautifulSoup(response.text, "html.parser")
+    product_lines = []
+    panel_lineas = soup.find('div', class_='panel_lineas')
+    if panel_lineas:
+        for a in panel_lineas.find_all('a'):
+            line_text = a.text.strip().upper()
+            if line_text and line_text not in EXCLUDED_LINES:
+                product_lines.append({
+                    "name": line_text,
+                    "href": a.get('href')
+                })
+    return product_lines
+
 if __name__ == "__main__":
+    # Example usage of get_product_lines
     with authenticated_session() as session:
-        print("Authenticated successfully.")
-        response = select_store(session, 'CENTRAL DE ABASTOS')
-        with open('central_page.html', 'w', encoding='utf-8') as f:
-            f.write(response.text)
-        print("Page saved successfully.")
-        
-    print("Session closed.")
+        store_name = "11 DE JULIO"
+        product_lines = get_product_lines(session, store_name)
+        for line in product_lines:
+            print(f"Product Line: {line['name']}, Link: {line['href']}")
