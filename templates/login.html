@@ -7,16 +7,19 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="login-container">
-        <h2>Login</h2>
-        <form id="loginForm">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" required>
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit">Login</button>
-        </form>
-        <div id="loginMessage" class="message"></div>
+    <div class="center-wrapper">
+        <img src="/static/logo.png" alt="GV Inventario Logo" class="login-logo">
+        <div class="card">
+            <h2 style="text-align:center;">Inventario</h2>
+            <form id="loginForm">
+                <label for="username">Usuario</label>
+                <input type="text" id="username" name="username" required>
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required>
+                <button type="submit">Iniciar Sesión</button>
+            </form>
+            <div id="loginMessage" class="message"></div>
+        </div>
     </div>
     <script src="/static/main.js"></script>
 </body>
