@@ -4,7 +4,7 @@ from jose import jwt
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Query, Request, Response
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -65,7 +65,7 @@ async def login(username: str = Form(...), password: str = Form(...), response: 
         response.set_cookie(key="access_token", value=access_token, httponly=True, max_age=ACCESS_TOKEN_EXPIRE_MINUTES*60)
         return response
     else:
-        return JSONResponse({"success": False, "message": "Invalid credentials"}, status_code=401)
+        return JSONResponse({"success": False, "message": "Usuario y/o contraseña incorrectos"}, status_code=401)
 
 @app.post("/logout")
 def logout(response: Response):
@@ -112,3 +112,11 @@ def save_inventory():
 @app.get("/status")
 def get_status():
     return scrape_status
+
+@app.get("/")
+def root(request: Request):
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        return RedirectResponse(url="/login")
+    # If you want to show a homepage, render a template here
+    return RedirectResponse(url="/login")  # Or render your main page if authenticated

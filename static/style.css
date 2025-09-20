@@ -135,6 +135,57 @@ button[type="submit"]:hover {
     color: #e74c3c;
 }
 
+.icon-user {
+    display: inline-block;
+    vertical-align: middle;
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+    background: url('data:image/svg+xml;utf8,<svg fill="%23666" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.418 0-8 1.79-8 4v2h16v-2c0-2.21-3.582-4-8-4z"/></svg>') no-repeat center center;
+    background-size: contain;
+}
+.icon-lock {
+    display: inline-block;
+    vertical-align: middle;
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+    background: url('data:image/svg+xml;utf8,<svg fill="%23666" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 8V6a5 5 0 0 0-10 0v2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-8-2a3 3 0 0 1 6 0v2H9V6zm8 14H7V10h10v10z"/></svg>') no-repeat center center;
+    background-size: contain;
+}
+.icon-eye {
+    display: inline-block;
+    vertical-align: middle;
+    width: 22px;
+    height: 22px;
+    background: url('data:image/svg+xml;utf8,<svg fill="%23666" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12c-4.418 0-8-3.582-8-5s3.582-5 8-5 8 3.582 8 5-3.582 5-8 5zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>') no-repeat center center;
+    background-size: contain;
+}
+.password-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+.password-group input[type="password"],
+.password-group input[type="text"] {
+    flex: 1 1 auto;
+    width: 100%;
+    margin-right: 0;
+}
+.toggle-password {
+    background: none;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0 4px;
+    margin-left: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 @media (max-width: 600px) {
     .center-wrapper {
         margin-bottom: 60px;

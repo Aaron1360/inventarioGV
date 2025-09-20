@@ -32,4 +32,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Password toggle functionality
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function() {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                togglePassword.querySelector('.icon-eye').style.filter = 'brightness(0.5)';
+            } else {
+                passwordInput.type = 'password';
+                togglePassword.querySelector('.icon-eye').style.filter = '';
+            }
+        });
+    }
 });
