@@ -93,10 +93,35 @@ document.addEventListener('DOMContentLoaded', function() {
     let paginatedData = [];
     const rowsPerPage = 50;
 
-    // Update table header to include row number
+    // Helper to calculate box count from stock array (allow decimals)
+    function getBoxCount(stockArr) {
+        let entry = stockArr.find(s => s.startsWith("CAJ"));
+        if (!entry) entry = stockArr.find(s => s.startsWith("PAQ"));
+        if (!entry) return '';
+        const piecesMatch = entry.match(/\((\d+)\)/);
+        const existenceMatch = entry.match(/\[(\d+)\]/);
+        if (piecesMatch && existenceMatch) {
+            const piecesPerPackage = parseInt(piecesMatch[1], 10);
+            const existence = parseInt(existenceMatch[1], 10);
+            return (existence / piecesPerPackage).toFixed(2);
+        }
+        return '';
+    }
+
+    // Helper to extract price from stock array (add $ sign)
+    function getPrice(stockArr) {
+        let entry = stockArr.find(s => s.startsWith("CAJ"));
+        if (!entry) entry = stockArr.find(s => s.startsWith("PAQ"));
+        if (!entry) entry = stockArr[0]; // fallback to first
+        if (!entry) return '';
+        const priceMatch = entry.match(/\)(\d+\.\d+)/); // matches after )
+        return priceMatch ? `$${priceMatch[1]}` : '';
+    }
+
+    // Update table header to include price column
     const tableHeader = document.querySelector('#inventoryTable thead tr');
     if (tableHeader) {
-        tableHeader.innerHTML = '<th>#</th><th>Línea</th><th>Nombre</th><th>Presentación</th><th>Stock</th>';
+        tableHeader.innerHTML = '<th>#</th><th>Línea</th><th>Nombre</th><th>Presentación</th><th>Stock</th><th>Cajas</th><th>Precio</th>';
     }
 
     function renderTablePage(page) {
@@ -112,12 +137,16 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         for (let i = startIdx; i < endIdx; i++) {
             const row = paginatedData[i];
+            const boxCount = getBoxCount(row.stock);
+            const price = getPrice(row.stock);
             html += `<tr>`;
             html += `<td>${i + 1}</td>`; // Row number
             html += `<td>${row.line}</td>`;
             html += `<td>${row.name}</td>`;
             html += `<td>${row.presentation}</td>`;
             html += `<td>${row.stock.join('<br>')}</td>`;
+            html += `<td>${boxCount}</td>`;
+            html += `<td>${price}</td>`;
             html += `</tr>`;
         }
         tableBody.innerHTML = html;
