@@ -20,13 +20,21 @@
         <div id="tableContainer">
             <table id="inventoryTable">
                 <thead>
-                    <tr id="tableHeader"></tr>
+                    <tr>
+                        <th>Línea</th>
+                        <th>Nombre</th>
+                        <th>Presentación</th>
+                        <th>Stock</th>
+                    </tr>
                 </thead>
-                <tbody id="tableBody"></tbody>
+                <tbody id="tableBody">
+                    <!-- Data rows will be injected here by main.js -->
+                </tbody>
             </table>
         </div>
         <div id="statusMessage" class="message"></div>
     </div>
+    <script src="/static/clean_data.js"></script>
     <script src="/static/main.js"></script>
 </body>
 </html>

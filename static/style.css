@@ -8,16 +8,16 @@ body, h2, form, input, button {
 
 html, body {
     height: 100vh;
-    overflow: hidden;
 }
 
 body {
     background: #fcfcfe;
     min-height: 100vh;
     width: 100vw;
+    /* Remove flex centering for all pages */
 }
 
-.center-wrapper {
+.center-wrapper, .container.homepage {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -25,7 +25,15 @@ body {
     min-height: 100vh;
     width: 100vw;
     padding: 2vw;
+    margin-top: 40px;
     margin-bottom: 120px;
+}
+
+.container.homepage {
+    max-width: 1200px;
+    width: 90vw;
+    margin: 40px auto 0 auto;
+    justify-content: center;
 }
 
 .login-logo {
@@ -274,6 +282,49 @@ label[for="storeSelect"] {
 #logoutBtn:hover {
     background: #fbb03b;
     color: #000;
+}
+.container.homepage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    width: 90vw;
+    max-width: 1200px;
+    margin: auto;
+}
+#tableContainer {
+    max-height: 60vh;
+    width: 100%;
+    overflow-y: auto;
+    margin-top: 2.5rem; /* Increased margin for better spacing */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-radius: 8px;
+    background: #fff;
+    display: flex;
+    align-items: flex-start; /* Fix: align to top so table starts at top */
+    justify-content: center;
+    position: relative;
+}
+#inventoryTable {
+    width: 98%;
+    border-collapse: collapse;
+    margin: 0 auto;
+}
+#inventoryTable th, #inventoryTable td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    word-break: break-word;
+}
+#inventoryTable th {
+    background: #fbb03b;
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-top: 0.5rem; /* Reduce top padding to avoid header pushing rows down */
+    padding-bottom: 0.5rem;
 }
 
 @media (max-width: 600px) {
