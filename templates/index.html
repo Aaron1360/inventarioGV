@@ -6,28 +6,23 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h2>Login</h2>
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
-        <form method="post" action="/login">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required>
-            <br>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
-            <br>
-            <button type="submit">Login</button>
-        </form>
-
-        {% if data %}
-            <hr>
-            <h2>Scraped Inventory Data</h2>
-            <div id="data">
-                {{ data }}
-            </div>
-        {% endif %}
+    <div class="container homepage">
+        <h2 style="text-align:center; color:#fbb03b; margin-bottom: 1.5rem;">Inventario GV</h2>
+        <div class="controls">
+            <label for="storeSelect">Sucursal:</label>
+            <select id="storeSelect"></select>
+            <button id="reloadBtn">Recargar Inventario</button>
+            <button id="downloadBtn" disabled>Descargar CSV</button>
+        </div>
+        <div id="tableContainer">
+            <table id="inventoryTable">
+                <thead>
+                    <tr id="tableHeader"></tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div id="statusMessage" class="message"></div>
     </div>
     <script src="/static/main.js"></script>
 </body>

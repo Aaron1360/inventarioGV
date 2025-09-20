@@ -15,8 +15,8 @@ from data_scraper.scraper_tools import authenticated_session, get_available_stor
 load_dotenv()
 LOGIN_URL = os.getenv("LOGIN_URL")
 POS_URL = os.getenv("POS_URL")
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+APP_USERNAME = os.getenv("APP_USERNAME")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
@@ -29,7 +29,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend origin
+    allow_origins=["http://localhost:3000","http://localhost:8000"],  # Frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,12 +59,15 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...), response: Response = None):
-    if username == USERNAME and password == PASSWORD:
+    print(f"Received username: {username}, password: {password}")
+    print(f"Expected APP_USERNAME: {APP_USERNAME}, APP_PASSWORD: {APP_PASSWORD}")
+    if username == APP_USERNAME and password == APP_PASSWORD:
         access_token = create_access_token({"sub": username})
         response = JSONResponse({"success": True, "message": "Login successful", "access_token": access_token})
         response.set_cookie(key="access_token", value=access_token, httponly=True, max_age=ACCESS_TOKEN_EXPIRE_MINUTES*60)
         return response
     else:
+        print("Login failed: credentials do not match.")
         return JSONResponse({"success": False, "message": "Usuario y/o contraseña incorrectos"}, status_code=401)
 
 @app.post("/logout")
@@ -75,7 +78,7 @@ def logout(response: Response):
 
 @app.get("/stores")
 def list_stores():
-    with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+    with authenticated_session(LOGIN_URL, APP_USERNAME, APP_PASSWORD) as session:
         stores = get_available_stores(session, POS_URL)
     return stores
 
@@ -85,7 +88,7 @@ def scrape_inventory(store_name: str = Query(...)):
     try:
         # Scrape and cache only if not already cached for this store
         if last_scraped_df is None or last_scraped_store_name != store_name:
-            with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+            with authenticated_session(LOGIN_URL, APP_USERNAME, APP_PASSWORD) as session:
                 df = get_dataframe(session, store_name, POS_URL)
             last_scraped_df = df
             last_scraped_store_name = store_name
@@ -118,5 +121,5 @@ def root(request: Request):
     access_token = request.cookies.get("access_token")
     if not access_token:
         return RedirectResponse(url="/login")
-    # If you want to show a homepage, render a template here
-    return RedirectResponse(url="/login")  # Or render your main page if authenticated
+    # Render homepage if authenticated
+    return templates.TemplateResponse("index.html", {"request": request})
