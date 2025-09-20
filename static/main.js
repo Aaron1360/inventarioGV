@@ -47,4 +47,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Restore icons for reload and download buttons
+    const reloadBtn = document.getElementById('reloadBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (reloadBtn) reloadBtn.innerHTML = '<span class="icon-reload"></span>';
+    if (downloadBtn) downloadBtn.innerHTML = '<span class="icon-download"></span>';
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async function() {
+            try {
+                const res = await fetch('/logout', { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    window.location.href = '/login';
+                }
+            } catch (err) {
+                window.location.href = '/login';
+            }
+        });
+    }
 });

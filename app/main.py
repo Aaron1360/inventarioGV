@@ -59,8 +59,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...), response: Response = None):
-    print(f"Received username: {username}, password: {password}")
-    print(f"Expected APP_USERNAME: {APP_USERNAME}, APP_PASSWORD: {APP_PASSWORD}")
     if username == APP_USERNAME and password == APP_PASSWORD:
         access_token = create_access_token({"sub": username})
         response = JSONResponse({"success": True, "message": "Login successful", "access_token": access_token})

@@ -108,7 +108,7 @@ def get_article_panel(session, relative_href: str, pos_url):
     return items
 
 def get_dataframe(session, store_name: str, pos_url, max_threads: int = 28):
-    """Scrape all products for a store using multithreading and return a pandas DataFrame."""
+    print(f"[SCRAPER] Triggered for store: {store_name}")
     all_products = []
     product_lines = get_product_lines(session, store_name, pos_url)
     # Use 4 threads per line
@@ -157,6 +157,7 @@ def get_dataframe(session, store_name: str, pos_url, max_threads: int = 28):
                                 })
     # Remove duplicates
     df = pd.DataFrame(all_products).drop_duplicates()
+    print(f"[SCRAPER] Done for store: {store_name}, products scraped: {len(df)}")
     return df
 
 def save_dataframe_to_csv(df, store_name, filename=None):
