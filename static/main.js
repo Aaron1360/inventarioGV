@@ -130,6 +130,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!paginatedData.length) {
             tableBody.innerHTML = '';
             statusMessage.textContent = 'No hay datos para mostrar.';
+            // Move pagination below statusMessage
+            renderPaginationControls();
             return;
         }
         const startIdx = (page - 1) * rowsPerPage;
@@ -151,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         tableBody.innerHTML = html;
         statusMessage.textContent = `Mostrando ${startIdx + 1} - ${endIdx} de ${paginatedData.length} filas`;
+        // Move pagination below statusMessage
         renderPaginationControls();
     }
 
@@ -159,11 +162,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!pagination) {
             pagination = document.createElement('div');
             pagination.id = 'paginationControls';
-            pagination.style.display = 'flex';
-            pagination.style.justifyContent = 'center';
-            pagination.style.gap = '8px';
-            pagination.style.margin = '1rem 0';
-            document.getElementById('tableContainer').appendChild(pagination);
+            pagination.className = 'pagination-controls';
+            // Move below statusMessage
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.parentNode.insertBefore(pagination, statusMessage.nextSibling);
         }
         pagination.innerHTML = '';
         const totalPages = Math.ceil(paginatedData.length / rowsPerPage);
@@ -187,6 +189,20 @@ document.addEventListener('DOMContentLoaded', function() {
         pagination.appendChild(nextBtn);
     }
 
+    const scraperNotification = document.getElementById('scraperNotification');
+    function showScraperNotification() {
+        if (scraperNotification) {
+            scraperNotification.style.display = 'block';
+            document.body.classList.add('scraper-blocked');
+        }
+    }
+    function hideScraperNotification() {
+        if (scraperNotification) {
+            scraperNotification.style.display = 'none';
+            document.body.classList.remove('scraper-blocked');
+        }
+    }
+
     // Load and display inventory data when reloadBtn is clicked
     if (reloadBtn) {
         reloadBtn.addEventListener('click', async function() {
@@ -200,6 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             tableBody.innerHTML = '';
             statusMessage.textContent = 'Cargando inventario...';
+            showScraperNotification(); // Show notification and block UI
             try {
                 const res = await fetch(`/scrape?store_name=${encodeURIComponent(storeSelect.value)}`);
                 const rawData = await res.json();
@@ -219,6 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 renderTablePage(1);
                 downloadBtn.disabled = true;
             }
+            hideScraperNotification(); // Hide notification and unblock UI
         });
     }
 });

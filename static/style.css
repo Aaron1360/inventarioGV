@@ -17,23 +17,35 @@ body {
     /* Remove flex centering for all pages */
 }
 
-.center-wrapper, .container.homepage {
+.center-wrapper{
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: start;
     justify-content: flex-start;
     min-height: 100vh;
     width: 100vw;
     padding: 2vw;
-    margin-top: 40px;
+    margin-top: 10px;
     margin-bottom: 120px;
 }
 
 .container.homepage {
-    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;     
+    min-height: 80vh;
     width: 90vw;
-    margin: 40px auto 0 auto;
-    justify-content: center;
+    max-width: 1200px;
+    margin: 60px auto 0 auto;         
+}
+
+.container.homepage h2 {
+    text-align: center;
+    color: #fbb03b;
+    margin-bottom: 1.5rem;
+    font-size: 2.3rem;
+    font-weight: 700;
 }
 
 .login-logo {
@@ -283,16 +295,7 @@ label[for="storeSelect"] {
     background: #fbb03b;
     color: #000;
 }
-.container.homepage {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 80vh;
-    width: 90vw;
-    max-width: 1200px;
-    margin: auto;
-}
+
 #tableContainer {
     max-height: 60vh;
     width: 100%;
@@ -325,6 +328,64 @@ label[for="storeSelect"] {
     z-index: 2;
     padding-top: 0.5rem; /* Reduce top padding to avoid header pushing rows down */
     padding-bottom: 0.5rem;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 1.2rem 0 0 0; /* Add top margin, no bottom margin */
+}
+.pagination-controls button {
+    background: #fff;
+    color: #000;
+    border: 1px solid #fbb03b;
+    border-radius: 6px;
+    padding: 0.5rem 1.2rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.pagination-controls button:hover:not(:disabled) {
+    background: #fbb03b;
+    color: #fff;
+}
+.pagination-controls span {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.notification-card {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    background: #fbb03b;
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 1.2rem 0;
+    z-index: 9999;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    letter-spacing: 1px;
+    display: none;
+}
+body.scraper-blocked {
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.7;
+}
+body.scraper-blocked .notification-card {
+    pointer-events: auto;
+    user-select: auto;
+    opacity: 1;
 }
 
 @media (max-width: 600px) {
