@@ -176,22 +176,21 @@ def save_dataframe_to_csv(df, store_name, filename=None):
 def get_wholesale_dataframe(df):
     """
     Process the DataFrame to create a wholesale DataFrame with columns:
-    line, name, presentation, # of boxes
-    For each presentation, keep only one row. Calculate # of boxes from the stock column:
+    presentacion, # cajas
+    For each presentacion, keep only one row. Calculate # cajas from the stock column:
     - Use CAJ if present, else PAQ
     - stock format: TYPE (# OF PZ PER TYPE)PRICE [# OF PZ IN EXISTANCE]
-    - # of boxes = # OF PZ IN EXISTANCE / # OF PZ PER TYPE
-    The output preserves the order of the first occurrence of each (line, name, presentation) in the original DataFrame.
+    - # cajas = # OF PZ IN EXISTANCE / # OF PZ PER TYPE
+    The output preserves the order of the first occurrence of each presentacion in the original DataFrame.
     """
     import re
     result_rows = []
     seen = set()
     for idx, row in df.iterrows():
-        key = (row["line"], row["name"], row["presentation"])
+        key = row["presentation"]
         if key in seen:
             continue
-        # Find CAJ or PAQ row for this group
-        group = df[(df["line"] == row["line"]) & (df["name"] == row["name"]) & (df["presentation"] == row["presentation"])]
+        group = df[df["presentation"] == row["presentation"]]
         caj_row = group[group["stock"].str.startswith("CAJ")]
         paq_row = group[group["stock"].str.startswith("PAQ")]
         use_row = None
@@ -206,46 +205,97 @@ def get_wholesale_dataframe(df):
         if m:
             n_per_type = float(m.group(2))
             n_exist = float(m.group(3))
-            n_boxes = round(n_exist / n_per_type, 2) if n_per_type else 0
+            n_cajas = round(n_exist / n_per_type, 2) if n_per_type else 0
         else:
-            n_boxes = 0
+            n_cajas = 0
         result_rows.append({
-            "line": row["line"],
-            "name": row["name"],
-            "presentation": row["presentation"],
-            "# of boxes": n_boxes
+            "presentacion": row["presentation"],
+            "# cajas": n_cajas
         })
         seen.add(key)
-    return pd.DataFrame(result_rows, columns=["line", "name", "presentation", "# of boxes"])
+    return pd.DataFrame(result_rows, columns=["presentacion", "# cajas"])
+
 
 def get_retail_dataframe(df):
     """
     Process the DataFrame to create a retail DataFrame with columns:
-    line, name, presentation, # of pz
-    For each presentation, keep only one row if it contains type PZA in the stock column and its value is not 0.
-    The output preserves the order of the first occurrence of each (line, name, presentation) in the original DataFrame.
+    presentacion, # piezas
+    For each presentacion, keep only one row if it contains type PZA in the stock column and its value is not 0.
+    The output preserves the order of the first occurrence of each presentacion in the original DataFrame.
     """
     import re
     result_rows = []
     seen = set()
     for idx, row in df.iterrows():
-        key = (row["line"], row["name"], row["presentation"])
+        key = row["presentation"]
         if key in seen:
             continue
-        # Find PZA row for this group
-        group = df[(df["line"] == row["line"]) & (df["name"] == row["name"]) & (df["presentation"] == row["presentation"])]
+        group = df[df["presentation"] == row["presentation"]]
         pza_row = group[group["stock"].str.startswith("PZA")]
         if not pza_row.empty:
             use_row = pza_row.iloc[0]
             stock_str = use_row["stock"]
             m = re.match(r"PZA \(\d+\)[^\[]*\[(\d+)\]", stock_str)
-            n_pz = int(m.group(1)) if m else 0
-            if n_pz != 0:
+            n_piezas = int(m.group(1)) if m else 0
+            if n_piezas != 0:
                 result_rows.append({
-                    "line": row["line"],
-                    "name": row["name"],
-                    "presentation": row["presentation"],
-                    "# of pz": n_pz
+                    "presentacion": row["presentation"],
+                    "# piezas": n_piezas
                 })
         seen.add(key)
-    return pd.DataFrame(result_rows, columns=["line", "name", "presentation", "# of pz"])
+    return pd.DataFrame(result_rows, columns=["presentacion", "# piezas"])
+
+
+def get_prices_dataframe(df):
+    """
+    Create a prices DataFrame with columns: presentacion, precio
+    The precio is taken from the CAJ type in the stock column, or PAQ if CAJ is missing.
+    The output preserves the order of the first occurrence of each presentacion in the original DataFrame.
+    """
+    import re
+    result_rows = []
+    seen = set()
+    for idx, row in df.iterrows():
+        key = row["presentation"]
+        if key in seen:
+            continue
+        group = df[df["presentation"] == row["presentation"]]
+        caj_row = group[group["stock"].str.startswith("CAJ")]
+        paq_row = group[group["stock"].str.startswith("PAQ")]
+        use_row = None
+        if not caj_row.empty:
+            use_row = caj_row.iloc[0]
+        elif not paq_row.empty:
+            use_row = paq_row.iloc[0]
+        else:
+            continue
+        stock_str = use_row["stock"]
+        m = re.match(r"(CAJ|PAQ) \(\d+\)([\d\.]+)", stock_str)
+        if m:
+            precio = float(m.group(2))
+        else:
+            precio = 0.0
+        result_rows.append({
+            "presentacion": row["presentation"],
+            "precio": f"${precio:.2f}"
+        })
+        seen.add(key)
+    return pd.DataFrame(result_rows, columns=["presentacion", "precio"])
+
+def export_all_dataframes_to_excel(df, filename):
+    """
+    Export the wholesale, retail, and prices DataFrames to a single Excel file with Spanish sheet names.
+    Sheet names: mayoreo, menudeo, precios
+    Adjusts the first column width to fit content.
+    """
+    wholesale_df = get_wholesale_dataframe(df)
+    retail_df = get_retail_dataframe(df)
+    prices_df = get_prices_dataframe(df)
+    with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+        for sheet_name, dataf in [("mayoreo", wholesale_df), ("menudeo", retail_df), ("precios", prices_df)]:
+            dataf.to_excel(writer, sheet_name=sheet_name, index=False)
+            worksheet = writer.sheets[sheet_name]
+            # Adjust first column width
+            max_len = max([len(str(x)) for x in dataf.iloc[:, 0].astype(str)] + [len(dataf.columns[0])])
+            worksheet.column_dimensions["A"].width = max_len + 2  # Add some padding
+    print(f"All dataframes exported to {filename}")

@@ -16,6 +16,7 @@ pkgs.mkShell {
     python3Packages.python-multipart
     python3Packages.pytz
     python3Packages.python-jose
+    python3Packages.openpyxl
   ];
 
   shellHook = ''

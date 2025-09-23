@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv, get_wholesale_dataframe, get_retail_dataframe
+from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv, get_wholesale_dataframe, get_retail_dataframe, get_prices_dataframe
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -166,6 +166,47 @@ def test_get_retail_dataframe():
     except Exception as e:
         print(f"test_get_retail_dataframe: FAILED ({e})")
 
+def test_get_prices_dataframe():
+    print("Running test_get_prices_dataframe...")
+    try:
+        with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+            stores = get_available_stores(session, POS_URL)
+            assert stores, "No stores available to select"
+            first_store = stores[0]["name"]
+            df = get_dataframe(session, first_store, POS_URL, max_threads=2)
+            assert not df.empty, "DataFrame is empty, cannot test prices processing"
+            prices_df = get_prices_dataframe(df)
+            assert not prices_df.empty, "Prices DataFrame is empty"
+            required_columns = {"line", "name", "presentation", "price"}
+            assert required_columns.issubset(prices_df.columns), f"Missing columns in prices DataFrame: {required_columns - set(prices_df.columns)}"
+            # Check only one row per unique (line, name, presentation)
+            assert prices_df.duplicated(subset=["line", "name", "presentation"]).sum() == 0, "Duplicate rows found in prices DataFrame"
+            # Check price format
+            assert prices_df["price"].str.match(r"^\$\d+\.\d{2}$").all(), "Price column contains invalid format"
+            # Save to CSV
+            filename = f"prices_{first_store.replace(' ', '_')}.csv"
+            prices_df.to_csv(filename, index=False)
+            print(f"Prices DataFrame saved to {filename}")
+        print("test_get_prices_dataframe: PASSED")
+    except Exception as e:
+        print(f"test_get_prices_dataframe: FAILED ({e})")
+
+def test_export_all_dataframes_to_excel():
+    print("Running test_export_all_dataframes_to_excel...")
+    try:
+        from scraper_tools import export_all_dataframes_to_excel
+        with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+            stores = get_available_stores(session, POS_URL)
+            assert stores, "No stores available to select"
+            first_store = stores[0]["name"]
+            df = get_dataframe(session, first_store, POS_URL, max_threads=2)
+            assert not df.empty, "Raw DataFrame is empty, cannot export"
+            filename = f"all_data_{first_store.replace(' ', '_')}.xlsx"
+            export_all_dataframes_to_excel(df, filename)
+        print("test_export_all_dataframes_to_excel: PASSED")
+    except Exception as e:
+        print(f"test_export_all_dataframes_to_excel: FAILED ({e})")
+
 if __name__ == "__main__":
     # test_authenticated_session()
     # test_get_available_stores()
@@ -175,4 +216,6 @@ if __name__ == "__main__":
     # test_get_dataframe()
     # test_save_dataframe_to_csv()
     # test_get_wholesale_dataframe()
-    test_get_retail_dataframe()
+    # test_get_retail_dataframe()
+    # test_get_prices_dataframe()
+    test_export_all_dataframes_to_excel()
