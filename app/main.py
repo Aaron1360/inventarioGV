@@ -1,16 +1,18 @@
 # app/main.py
 import os
 from jose import jwt
+import pytz
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, Query, Request, Response
+from fastapi import FastAPI, Form, Query, Request, Response, Depends, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from jose import JWTError
 
-from data_scraper.scraper_tools import authenticated_session, get_available_stores, get_dataframe, save_dataframe_to_csv
+from data_scraper.scraper_tools import authenticated_session, get_available_stores, get_dataframe, save_dataframe_to_csv, export_all_dataframes_to_excel, get_wholesale_dataframe, get_retail_dataframe, get_prices_dataframe
 
 load_dotenv()
 LOGIN_URL = os.getenv("LOGIN_URL")
@@ -44,8 +46,31 @@ scrape_status = {
     "error": None
 }
 
-last_scraped_df = None
-last_scraped_store_name = None
+# Per-user cache
+user_cache = {}
+
+def get_token_from_request(request: Request):
+    # Try to get token from Authorization header first
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1]
+    # Fallback to cookie
+    token = request.cookies.get("access_token")
+    if token:
+        return token
+    raise HTTPException(status_code=401, detail="No access token found")
+
+# Helper to get current username from JWT
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+def get_current_username(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
 @app.get("/login")
 def login_page(request: Request):
@@ -81,21 +106,26 @@ def list_stores():
     return stores
 
 @app.get("/scrape")
-def scrape_inventory(store_name: str = Query(...)):
-    global last_scraped_df, last_scraped_store_name
+def scrape_inventory(store_name: str = Query(...), request: Request = None):
+    token = get_token_from_request(request)
+    if token not in user_cache:
+        user_cache[token] = {"df": None, "store_name": None}
     try:
-        # Scrape and cache only if not already cached for this store
-        if last_scraped_df is None or last_scraped_store_name != store_name:
+        cache = user_cache[token]
+        if cache["df"] is None or cache["store_name"] != store_name:
             with authenticated_session(LOGIN_URL, APP_USERNAME, APP_PASSWORD) as session:
                 df = get_dataframe(session, store_name, POS_URL)
-            last_scraped_df = df
-            last_scraped_store_name = store_name
+            cache["df"] = df
+            cache["store_name"] = store_name
         else:
-            df = last_scraped_df
+            df = cache["df"]
         scrape_status["last_scrape"] = datetime.utcnow().isoformat()
         scrape_status["success"] = True
         scrape_status["error"] = None
-        return df.to_dict(orient="records")
+        wholesale = get_wholesale_dataframe(df).to_dict(orient="records")
+        retail = get_retail_dataframe(df).to_dict(orient="records")
+        prices = get_prices_dataframe(df).to_dict(orient="records")
+        return {"wholesale": wholesale, "retail": retail, "prices": prices}
     except Exception as e:
         scrape_status["last_scrape"] = datetime.utcnow().isoformat()
         scrape_status["success"] = False
@@ -103,12 +133,20 @@ def scrape_inventory(store_name: str = Query(...)):
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 @app.get("/save")
-def save_inventory():
-    global last_scraped_df, last_scraped_store_name
-    if last_scraped_df is None or last_scraped_store_name is None:
+def save_inventory(request: Request = None):
+    token = get_token_from_request(request)
+    if token not in user_cache or user_cache[token]["df"] is None or user_cache[token]["store_name"] is None:
         return JSONResponse({"success": False, "error": "No scraped data available. Please call /scrape first."}, status_code=400)
-    filename = save_dataframe_to_csv(last_scraped_df, last_scraped_store_name)
-    return FileResponse(filename, media_type="text/csv", filename=filename)
+    df = user_cache[token]["df"]
+    store_name = user_cache[token]["store_name"]
+    tz = pytz.timezone("America/Mexico_City")
+    now = datetime.now(tz)
+    date_str = now.strftime('%Y%m%d')
+    time_str = now.strftime('%H%M%S')
+    safe_store = store_name.replace(' ', '_').replace('/', '_')
+    filename = f"inventario_{safe_store}_{date_str}_{time_str}.xlsx"
+    export_all_dataframes_to_excel(df, filename)
+    return FileResponse(filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=filename)
 
 @app.get("/status")
 def get_status():
