@@ -14,19 +14,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    loginMessage.textContent = 'Login successful! Redirecting...';
+                    loginMessage.textContent = '¡Inicio de sesión exitoso! Redirigiendo...';
                     loginMessage.classList.remove('error');
                     loginMessage.classList.add('success');
                     setTimeout(() => {
-                        window.location.href = '/'; // Redirect to main page after login
+                        window.location.href = '/'; // Redirige a la página principal después de iniciar sesión
                     }, 1200);
                 } else {
-                    loginMessage.textContent = result.message || 'Login failed.';
+                    loginMessage.textContent = result.message || 'Error al iniciar sesión.';
                     loginMessage.classList.remove('success');
                     loginMessage.classList.add('error');
                 }
             } catch (err) {
-                loginMessage.textContent = 'Network error.';
+                loginMessage.textContent = 'Error de red.';
                 loginMessage.classList.remove('success');
                 loginMessage.classList.add('error');
             }
@@ -48,11 +48,81 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Restore icons for reload and download buttons
     const reloadBtn = document.getElementById('reloadBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    if (reloadBtn) reloadBtn.innerHTML = '<span class="icon-reload"></span>';
-    if (downloadBtn) downloadBtn.innerHTML = '<span class="icon-download"></span>';
+    const tableContainer = document.getElementById('tableContainer');
+    const preTableMessage = document.getElementById('preTableMessage');
+
+    // Add tab navigation for tables
+    let tabNav = null;
+    let tabContent = null;
+    function createTabs() {
+        if (!tableContainer) return;
+        tableContainer.innerHTML = `
+            <ul class="nav nav-tabs mb-3" id="dataTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-mayoreo" data-bs-toggle="tab" data-bs-target="#tabPanel-mayoreo" type="button" role="tab">Mayoreo</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-menudeo" data-bs-toggle="tab" data-bs-target="#tabPanel-menudeo" type="button" role="tab">Menudeo</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-precios" data-bs-toggle="tab" data-bs-target="#tabPanel-precios" type="button" role="tab">Precios</button>
+                </li>
+            </ul>
+            <div class="tab-content" id="dataTabsContent">
+                <div class="tab-pane fade show active" id="tabPanel-mayoreo" role="tabpanel"></div>
+                <div class="tab-pane fade" id="tabPanel-menudeo" role="tabpanel"></div>
+                <div class="tab-pane fade" id="tabPanel-precios" role="tabpanel"></div>
+            </div>
+        `;
+        tabNav = document.getElementById('dataTabs');
+        tabContent = document.getElementById('dataTabsContent');
+    }
+
+    // Pagination and rendering for each table
+    function renderPaginatedTable(data, columns, containerId, page, rowsPerPage) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        if (!Array.isArray(data) || data.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No hay datos para mostrar.</div>';
+            return;
+        }
+        const totalPages = Math.ceil(data.length / rowsPerPage);
+        const startIdx = (page - 1) * rowsPerPage;
+        const endIdx = Math.min(startIdx + rowsPerPage, data.length);
+        let html = `<div style="overflow-x:auto; max-height:55vh;">
+            <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-warning">
+                    <tr>`;
+        columns.forEach(col => {
+            html += `<th>${col.header}</th>`;
+        });
+        html += `</tr></thead><tbody>`;
+        for (let i = startIdx; i < endIdx; i++) {
+            html += '<tr>';
+            columns.forEach(col => {
+                html += `<td>${data[i][col.key] ?? ''}</td>`;
+            });
+            html += '</tr>';
+        }
+        html += '</tbody></table></div>';
+        // Pagination controls
+        html += `<div class="pagination-controls d-flex justify-content-center align-items-center gap-2 mt-2">`;
+        html += `<button class="btn btn-sm btn-outline-secondary" ${page === 1 ? 'disabled' : ''} data-page="${page - 1}">Anterior</button>`;
+        html += `<span>Página ${page} de ${totalPages}</span>`;
+        html += `<button class="btn btn-sm btn-outline-secondary" ${page === totalPages ? 'disabled' : ''} data-page="${page + 1}">Siguiente</button>`;
+        html += `</div>`;
+        container.innerHTML = html;
+        // Pagination event listeners
+        const btns = container.querySelectorAll('.pagination-controls button');
+        btns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const newPage = parseInt(this.getAttribute('data-page'));
+                renderPaginatedTable(data, columns, containerId, newPage, rowsPerPage);
+            });
+        });
+    }
 
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -220,23 +290,56 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const res = await fetch(`/scrape?store_name=${encodeURIComponent(storeSelect.value)}`);
                 const rawData = await res.json();
-                if (Array.isArray(rawData) && rawData.length > 0) {
-                    // Clean and sort data using clean_data.js
-                    paginatedData = window.groupAndSortInventory(rawData);
-                    currentPage = 1;
-                    renderTablePage(currentPage);
+                // Expecting {wholesale, retail, prices} from backend
+                if (rawData && rawData.wholesale && Array.isArray(rawData.wholesale) && rawData.wholesale.length > 0) {
+                    // Hide pre-table message, show table
+                    if (preTableMessage) preTableMessage.classList.add('d-none');
+                    if (tableContainer) tableContainer.classList.remove('d-none');
+                    createTabs();
+                    // Render each table in its tab
+                    renderPaginatedTable(
+                        rawData.wholesale,
+                        [
+                            { key: 'presentacion', header: 'Presentación' },
+                            { key: '# cajas', header: '# Cajas' }
+                        ],
+                        'tabPanel-mayoreo', 1, 50
+                    );
+                    renderPaginatedTable(
+                        rawData.retail,
+                        [
+                            { key: 'presentacion', header: 'Presentación' },
+                            { key: '# piezas', header: '# Piezas' }
+                        ],
+                        'tabPanel-menudeo', 1, 50
+                    );
+                    renderPaginatedTable(
+                        rawData.prices,
+                        [
+                            { key: 'presentacion', header: 'Presentación' },
+                            { key: 'precio', header: 'Precio' }
+                        ],
+                        'tabPanel-precios', 1, 50
+                    );
                     downloadBtn.disabled = false;
+                    statusMessage.textContent = '';
                 } else {
-                    paginatedData = [];
-                    renderTablePage(1);
+                    if (preTableMessage) preTableMessage.classList.remove('d-none');
+                    if (tableContainer) tableContainer.classList.add('d-none');
                     downloadBtn.disabled = true;
+                    statusMessage.textContent = 'No se encontraron datos.';
                 }
             } catch (err) {
-                paginatedData = [];
-                renderTablePage(1);
+                if (preTableMessage) preTableMessage.classList.remove('d-none');
+                if (tableContainer) tableContainer.classList.add('d-none');
                 downloadBtn.disabled = true;
+                statusMessage.textContent = 'Error al cargar inventario.';
             }
-            hideScraperNotification(); // Hide notification and unblock UI
+            hideScraperNotification();
         });
     }
+
+    // On page load, ensure table is hidden and message is shown
+    if (preTableMessage) preTableMessage.classList.remove('d-none');
+    if (tableContainer) tableContainer.classList.add('d-none');
 });
