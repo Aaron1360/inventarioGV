@@ -111,39 +111,39 @@ def get_dataframe(session, store_name: str, pos_url, max_threads: int = 28):
     print(f"[SCRAPER] Triggered for store: {store_name}")
     all_products = []
     product_lines = get_product_lines(session, store_name, pos_url)
-    # Use 4 threads per line
-    num_threads = min(len(product_lines) * 4, max_threads)
+    # Use 1 thread per line to preserve order
+    num_threads = min(len(product_lines), max_threads)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        article_futures = {
-            executor.submit(get_article_panel, session, line['href'], pos_url): line['name']
+        article_futures = [
+            executor.submit(get_article_panel, session, line['href'], pos_url)
             for line in product_lines
-        }
-        for future in as_completed(article_futures):
-            line_name = article_futures[future]
+        ]
+        for idx, future in enumerate(article_futures):
+            line_name = product_lines[idx]['name']
             try:
                 articles = future.result()
             except Exception:
                 continue
             # Thread pool for presentations per article
-            with ThreadPoolExecutor(max_workers=4) as pres_executor:
-                pres_futures = {
-                    pres_executor.submit(get_article_panel, session, article['href'], pos_url): article['name']
+            with ThreadPoolExecutor(max_workers=1) as pres_executor:
+                pres_futures = [
+                    pres_executor.submit(get_article_panel, session, article['href'], pos_url)
                     for article in articles
-                }
-                for pres_future in as_completed(pres_futures):
-                    article_name = pres_futures[pres_future]
+                ]
+                for jdx, pres_future in enumerate(pres_futures):
+                    article_name = articles[jdx]['name']
                     try:
                         presentations = pres_future.result()
                     except Exception:
                         continue
                     # Thread pool for stock per presentation
-                    with ThreadPoolExecutor(max_workers=4) as stock_executor:
-                        stock_futures = {
-                            stock_executor.submit(get_article_panel, session, presentation['href'], pos_url): presentation['name']
+                    with ThreadPoolExecutor(max_workers=1) as stock_executor:
+                        stock_futures = [
+                            stock_executor.submit(get_article_panel, session, presentation['href'], pos_url)
                             for presentation in presentations
-                        }
-                        for stock_future in as_completed(stock_futures):
-                            presentation_name = stock_futures[stock_future]
+                        ]
+                        for kdx, stock_future in enumerate(stock_futures):
+                            presentation_name = presentations[kdx]['name']
                             try:
                                 stock_list = stock_future.result()
                             except Exception:
