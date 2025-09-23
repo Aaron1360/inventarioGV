@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv
+from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv, get_wholesale_dataframe
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -104,17 +104,42 @@ def test_save_dataframe_to_csv():
             stores = get_available_stores(session, POS_URL)
             assert stores, "No stores available to select"
             first_store = stores[0]["name"]
-            df = get_dataframe(session, first_store, POS_URL, max_threads=2)
+            df = get_dataframe(session, first_store, POS_URL, max_threads=4)
             assert not df.empty, "DataFrame is empty, cannot test CSV export"
             filename = save_dataframe_to_csv(df, first_store)
             assert os.path.exists(filename), f"CSV file was not created: {filename}"
             # Optionally, check file is not empty
             assert os.path.getsize(filename) > 0, "CSV file is empty"
             # Clean up
-            os.remove(filename)
+            # os.remove(filename)
         print("test_save_dataframe_to_csv: PASSED")
     except Exception as e:
         print(f"test_save_dataframe_to_csv: FAILED ({e})")
+
+def test_get_wholesale_dataframe():
+    print("Running test_get_wholesale_dataframe...")
+    try:
+        with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+            stores = get_available_stores(session, POS_URL)
+            assert stores, "No stores available to select"
+            first_store = stores[0]["name"]
+            df = get_dataframe(session, first_store, POS_URL, max_threads=4)
+            assert not df.empty, "DataFrame is empty, cannot test wholesale processing"
+            wholesale_df = get_wholesale_dataframe(df)
+            assert not wholesale_df.empty, "Wholesale DataFrame is empty"
+            required_columns = {"line", "name", "presentation", "# of boxes"}
+            assert required_columns.issubset(wholesale_df.columns), f"Missing columns in wholesale DataFrame: {required_columns - set(wholesale_df.columns)}"
+            # Check only one row per unique (line, name, presentation)
+            assert wholesale_df.duplicated(subset=["line", "name", "presentation"]).sum() == 0, "Duplicate rows found in wholesale DataFrame"
+            # Check # of boxes is a number (float or int)
+            assert wholesale_df["# of boxes"].apply(lambda x: isinstance(x, (int, float))).all(), "# of boxes column contains non-numeric values"
+            # Save to CSV
+            filename = f"wholesale_{first_store.replace(' ', '_')}.csv"
+            wholesale_df.to_csv(filename, index=False)
+            print(f"Wholesale DataFrame saved to {filename}")
+        print("test_get_wholesale_dataframe: PASSED")
+    except Exception as e:
+        print(f"test_get_wholesale_dataframe: FAILED ({e})")
 
 if __name__ == "__main__":
     # test_authenticated_session()
@@ -123,4 +148,5 @@ if __name__ == "__main__":
     # test_get_product_lines()
     # test_get_article_panel()
     # test_get_dataframe()
-    test_save_dataframe_to_csv()
+    # test_save_dataframe_to_csv()
+    test_get_wholesale_dataframe()

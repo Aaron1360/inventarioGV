@@ -172,3 +172,48 @@ def save_dataframe_to_csv(df, store_name, filename=None):
     df.to_csv(filename, index=False)
     print(f"DataFrame saved to {filename}")
     return filename
+
+def get_wholesale_dataframe(df):
+    """
+    Process the DataFrame to create a wholesale DataFrame with columns:
+    line, name, presentation, # of boxes
+    For each presentation, keep only one row. Calculate # of boxes from the stock column:
+    - Use CAJ if present, else PAQ
+    - stock format: TYPE (# OF PZ PER TYPE)PRICE [# OF PZ IN EXISTANCE]
+    - # of boxes = # OF PZ IN EXISTANCE / # OF PZ PER TYPE
+    The output preserves the order of the first occurrence of each (line, name, presentation) in the original DataFrame.
+    """
+    import re
+    result_rows = []
+    seen = set()
+    for idx, row in df.iterrows():
+        key = (row["line"], row["name"], row["presentation"])
+        if key in seen:
+            continue
+        # Find CAJ or PAQ row for this group
+        group = df[(df["line"] == row["line"]) & (df["name"] == row["name"]) & (df["presentation"] == row["presentation"])]
+        caj_row = group[group["stock"].str.startswith("CAJ")]
+        paq_row = group[group["stock"].str.startswith("PAQ")]
+        use_row = None
+        if not caj_row.empty:
+            use_row = caj_row.iloc[0]
+        elif not paq_row.empty:
+            use_row = paq_row.iloc[0]
+        else:
+            continue
+        stock_str = use_row["stock"]
+        m = re.match(r"(CAJ|PAQ) \((\d+)\)[^\[]*\[(\d+(?:\.\d+)?)\]", stock_str)
+        if m:
+            n_per_type = float(m.group(2))
+            n_exist = float(m.group(3))
+            n_boxes = round(n_exist / n_per_type, 2) if n_per_type else 0
+        else:
+            n_boxes = 0
+        result_rows.append({
+            "line": row["line"],
+            "name": row["name"],
+            "presentation": row["presentation"],
+            "# of boxes": n_boxes
+        })
+        seen.add(key)
+    return pd.DataFrame(result_rows, columns=["line", "name", "presentation", "# of boxes"])
