@@ -217,3 +217,35 @@ def get_wholesale_dataframe(df):
         })
         seen.add(key)
     return pd.DataFrame(result_rows, columns=["line", "name", "presentation", "# of boxes"])
+
+def get_retail_dataframe(df):
+    """
+    Process the DataFrame to create a retail DataFrame with columns:
+    line, name, presentation, # of pz
+    For each presentation, keep only one row if it contains type PZA in the stock column and its value is not 0.
+    The output preserves the order of the first occurrence of each (line, name, presentation) in the original DataFrame.
+    """
+    import re
+    result_rows = []
+    seen = set()
+    for idx, row in df.iterrows():
+        key = (row["line"], row["name"], row["presentation"])
+        if key in seen:
+            continue
+        # Find PZA row for this group
+        group = df[(df["line"] == row["line"]) & (df["name"] == row["name"]) & (df["presentation"] == row["presentation"])]
+        pza_row = group[group["stock"].str.startswith("PZA")]
+        if not pza_row.empty:
+            use_row = pza_row.iloc[0]
+            stock_str = use_row["stock"]
+            m = re.match(r"PZA \(\d+\)[^\[]*\[(\d+)\]", stock_str)
+            n_pz = int(m.group(1)) if m else 0
+            if n_pz != 0:
+                result_rows.append({
+                    "line": row["line"],
+                    "name": row["name"],
+                    "presentation": row["presentation"],
+                    "# of pz": n_pz
+                })
+        seen.add(key)
+    return pd.DataFrame(result_rows, columns=["line", "name", "presentation", "# of pz"])

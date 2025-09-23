@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv, get_wholesale_dataframe
+from scraper_tools import authenticated_session, get_available_stores, select_store, get_product_lines, get_article_panel, get_dataframe, save_dataframe_to_csv, get_wholesale_dataframe, get_retail_dataframe
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -141,6 +141,31 @@ def test_get_wholesale_dataframe():
     except Exception as e:
         print(f"test_get_wholesale_dataframe: FAILED ({e})")
 
+def test_get_retail_dataframe():
+    print("Running test_get_retail_dataframe...")
+    try:
+        with authenticated_session(LOGIN_URL, USERNAME, PASSWORD) as session:
+            stores = get_available_stores(session, POS_URL)
+            assert stores, "No stores available to select"
+            first_store = stores[0]["name"]
+            df = get_dataframe(session, first_store, POS_URL, max_threads=4)
+            assert not df.empty, "DataFrame is empty, cannot test retail processing"
+            retail_df = get_retail_dataframe(df)
+            assert not retail_df.empty, "Retail DataFrame is empty"
+            required_columns = {"line", "name", "presentation", "# of pz"}
+            assert required_columns.issubset(retail_df.columns), f"Missing columns in retail DataFrame: {required_columns - set(retail_df.columns)}"
+            # Check only one row per unique (line, name, presentation)
+            assert retail_df.duplicated(subset=["line", "name", "presentation"]).sum() == 0, "Duplicate rows found in retail DataFrame"
+            # Check # of pz is an integer
+            assert retail_df["# of pz"].apply(lambda x: isinstance(x, int)).all(), "# of pz column contains non-integer values"
+            # Save to CSV
+            filename = f"retail_{first_store.replace(' ', '_')}.csv"
+            retail_df.to_csv(filename, index=False)
+            print(f"Retail DataFrame saved to {filename}")
+        print("test_get_retail_dataframe: PASSED")
+    except Exception as e:
+        print(f"test_get_retail_dataframe: FAILED ({e})")
+
 if __name__ == "__main__":
     # test_authenticated_session()
     # test_get_available_stores()
@@ -149,4 +174,5 @@ if __name__ == "__main__":
     # test_get_article_panel()
     # test_get_dataframe()
     # test_save_dataframe_to_csv()
-    test_get_wholesale_dataframe()
+    # test_get_wholesale_dataframe()
+    test_get_retail_dataframe()
