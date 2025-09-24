@@ -36,3 +36,12 @@ Custom styles for login page layout and logo responsiveness
         align-items: center;
     }
 }
+
+/*
+Custom styles for tables
+*/
+.table-scroll-wrapper {
+    overflow-y: auto;
+    max-height: 60vh;
+    min-height: 200px;
+}

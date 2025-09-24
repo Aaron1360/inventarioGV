@@ -1,5 +1,5 @@
-import { createTabs, renderPaginatedTable } from './table.js';
 import { showScraperNotification, hideScraperNotification } from './scraperNotification.js';
+import { renderInventoryTabs } from './tables.js';
 
 export function setupInventory() {
     const reloadBtn = document.getElementById('reloadBtn');
@@ -22,31 +22,7 @@ export function setupInventory() {
             if (rawData && rawData.wholesale && Array.isArray(rawData.wholesale) && rawData.wholesale.length > 0) {
                 if (preTableMessage) preTableMessage.classList.add('d-none');
                 if (tableContainer) tableContainer.classList.remove('d-none');
-                createTabs(tableContainer);
-                renderPaginatedTable(
-                    rawData.wholesale,
-                    [
-                        { key: 'presentacion', header: 'Presentación' },
-                        { key: '# cajas', header: '# Cajas' }
-                    ],
-                    'tabPanel-mayoreo', 1, 50
-                );
-                renderPaginatedTable(
-                    rawData.retail,
-                    [
-                        { key: 'presentacion', header: 'Presentación' },
-                        { key: '# piezas', header: '# Piezas' }
-                    ],
-                    'tabPanel-menudeo', 1, 50
-                );
-                renderPaginatedTable(
-                    rawData.prices,
-                    [
-                        { key: 'presentacion', header: 'Presentación' },
-                        { key: 'precio', header: 'Precio' }
-                    ],
-                    'tabPanel-precios', 1, 50
-                );
+                renderInventoryTabs(tableContainer, rawData.wholesale, rawData.retail, rawData.prices);
                 downloadBtn.disabled = false;
                 statusMessage.textContent = '';
             } else {
@@ -63,4 +39,35 @@ export function setupInventory() {
         }
         hideScraperNotification();
     });
+
+    // Save/download Excel functionality
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', async function() {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = 'Preparando archivo para descargar...';
+            showScraperNotification();
+            try {
+                const res = await fetch('/save');
+                if (!res.ok) throw new Error('No se pudo descargar el archivo.');
+                const disposition = res.headers.get('Content-Disposition');
+                let filename = 'inventario.xlsx';
+                if (disposition && disposition.includes('filename=')) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '');
+                }
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                statusMessage.textContent = '';
+            } catch (err) {
+                statusMessage.textContent = 'Error al descargar el archivo.';
+            }
+            hideScraperNotification();
+        });
+    }
 }

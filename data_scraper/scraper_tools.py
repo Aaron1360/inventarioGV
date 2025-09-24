@@ -176,11 +176,11 @@ def save_dataframe_to_csv(df, store_name, filename=None):
 def get_wholesale_dataframe(df):
     """
     Process the DataFrame to create a wholesale DataFrame with columns:
-    presentacion, # cajas
-    For each presentacion, keep only one row. Calculate # cajas from the stock column:
+    presentacion, cajas
+    For each presentacion, keep only one row. Calculate cajas from the stock column:
     - Use CAJ if present, else PAQ
     - stock format: TYPE (# OF PZ PER TYPE)PRICE [# OF PZ IN EXISTANCE]
-    - # cajas = # OF PZ IN EXISTANCE / # OF PZ PER TYPE
+    - cajas = # OF PZ IN EXISTANCE / # OF PZ PER TYPE
     The output preserves the order of the first occurrence of each presentacion in the original DataFrame.
     """
     import re
@@ -210,16 +210,16 @@ def get_wholesale_dataframe(df):
             n_cajas = 0
         result_rows.append({
             "presentacion": row["presentation"],
-            "# cajas": n_cajas
+            "cajas": n_cajas
         })
         seen.add(key)
-    return pd.DataFrame(result_rows, columns=["presentacion", "# cajas"])
+    return pd.DataFrame(result_rows, columns=["presentacion", "cajas"])
 
 
 def get_retail_dataframe(df):
     """
     Process the DataFrame to create a retail DataFrame with columns:
-    presentacion, # piezas
+    presentacion, piezas
     For each presentacion, keep only one row if it contains type PZA in the stock column and its value is not 0.
     The output preserves the order of the first occurrence of each presentacion in the original DataFrame.
     """
@@ -240,11 +240,10 @@ def get_retail_dataframe(df):
             if n_piezas != 0:
                 result_rows.append({
                     "presentacion": row["presentation"],
-                    "# piezas": n_piezas
+                    "piezas": n_piezas
                 })
         seen.add(key)
-    return pd.DataFrame(result_rows, columns=["presentacion", "# piezas"])
-
+    return pd.DataFrame(result_rows, columns=["presentacion", "piezas"])
 
 def get_prices_dataframe(df):
     """
