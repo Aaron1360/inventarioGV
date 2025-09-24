@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from jose import JWTError
+from io import BytesIO
 
 from data_scraper.scraper_tools import authenticated_session, get_available_stores, get_dataframe, save_dataframe_to_csv, export_all_dataframes_to_excel, get_wholesale_dataframe, get_retail_dataframe, get_prices_dataframe
 
@@ -157,8 +158,15 @@ def save_inventory(request: Request = None):
     time_str = now.strftime('%H%M%S')
     safe_store = store_name.replace(' ', '_').replace('/', '_')
     filename = f"inventario_{safe_store}_{date_str}_{time_str}.xlsx"
-    export_all_dataframes_to_excel(df, filename)
-    return FileResponse(filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=filename)
+    # Write Excel to memory
+    output = BytesIO()
+    export_all_dataframes_to_excel(df, output)
+    output.seek(0)
+    return Response(
+        content=output.read(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.get("/status")
 def get_status():
@@ -176,6 +184,23 @@ def root(request: Request):
 def clear_cache(request: Request):
     token = get_token_from_request(request)
     if token in user_cache:
-        del user_cache[token]
+        # Only clear data and store name, preserve last_scrape for cooldown
+        last_scrape = user_cache[token].get("last_scrape")
+        user_cache[token] = {"df": None, "store_name": None, "last_scrape": last_scrape}
         return JSONResponse({"success": True, "message": "Cache borrado correctamente."}, status_code=200)
     return JSONResponse({"success": False, "message": "No hay datos en caché para borrar."}, status_code=404)
+
+@app.get("/cooldown_status")
+def cooldown_status(request: Request):
+    token = get_token_from_request(request)
+    now = datetime.utcnow()
+    cooldown = 0
+    if token in user_cache:
+        last_scrape = user_cache[token].get("last_scrape")
+        if last_scrape:
+            if isinstance(last_scrape, str):
+                last_scrape = datetime.fromisoformat(last_scrape)
+            elapsed = (now - last_scrape).total_seconds()
+            if elapsed < COOLDOWN_SECONDS:
+                cooldown = int(COOLDOWN_SECONDS - elapsed)
+    return {"cooldown": cooldown}
