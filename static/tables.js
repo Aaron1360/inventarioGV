@@ -1,6 +1,6 @@
 // tables.js: Modularized table rendering and tab logic for inventory DataFrames
 
-const ROWS_PER_PAGE = 30;
+const ROWS_PER_PAGE = 50;
 
 export function renderInventoryTabs(tableContainer, wholesale, retail, prices) {
     if (!tableContainer) return;
