@@ -107,54 +107,62 @@ def get_article_panel(session, relative_href: str, pos_url):
                 items.append({"name": text, "href": href})
     return items
 
-def get_dataframe(session, store_name: str, pos_url, max_threads: int = 28):
+def get_dataframe(session, store_name: str, pos_url, max_threads: int = 32):
     print(f"[SCRAPER] Triggered for store: {store_name}")
     all_products = []
     product_lines = get_product_lines(session, store_name, pos_url)
-    # Use 1 thread per line to preserve order
-    num_threads = min(len(product_lines), max_threads)
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+    # Use a single ThreadPoolExecutor for all network-bound tasks
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        # Fetch articles for each line in parallel, preserving order
         article_futures = [
             executor.submit(get_article_panel, session, line['href'], pos_url)
             for line in product_lines
         ]
+        articles_by_line = []
         for idx, future in enumerate(article_futures):
-            line_name = product_lines[idx]['name']
             try:
                 articles = future.result()
             except Exception:
-                continue
-            # Thread pool for presentations per article
-            with ThreadPoolExecutor(max_workers=1) as pres_executor:
-                pres_futures = [
-                    pres_executor.submit(get_article_panel, session, article['href'], pos_url)
-                    for article in articles
+                articles = []
+            articles_by_line.append(articles)
+        # For each line, fetch presentations for each article in parallel, preserving order
+        presentations_by_line = []
+        for articles in articles_by_line:
+            pres_futures = [
+                executor.submit(get_article_panel, session, article['href'], pos_url)
+                for article in articles
+            ]
+            presentations = []
+            for jdx, pres_future in enumerate(pres_futures):
+                try:
+                    pres = pres_future.result()
+                except Exception:
+                    pres = []
+                presentations.append(pres)
+            presentations_by_line.append(presentations)
+        # For each presentation, fetch stock in parallel, preserving order
+        for line_idx, (line, articles, presentations_list) in enumerate(zip(product_lines, articles_by_line, presentations_by_line)):
+            for art_idx, (article, presentations) in enumerate(zip(articles, presentations_list)):
+                stock_futures = [
+                    executor.submit(get_article_panel, session, presentation['href'], pos_url)
+                    for presentation in presentations
                 ]
-                for jdx, pres_future in enumerate(pres_futures):
-                    article_name = articles[jdx]['name']
+                stocks_by_presentation = []
+                for kdx, stock_future in enumerate(stock_futures):
                     try:
-                        presentations = pres_future.result()
+                        stock_list = stock_future.result()
                     except Exception:
-                        continue
-                    # Thread pool for stock per presentation
-                    with ThreadPoolExecutor(max_workers=1) as stock_executor:
-                        stock_futures = [
-                            stock_executor.submit(get_article_panel, session, presentation['href'], pos_url)
-                            for presentation in presentations
-                        ]
-                        for kdx, stock_future in enumerate(stock_futures):
-                            presentation_name = presentations[kdx]['name']
-                            try:
-                                stock_list = stock_future.result()
-                            except Exception:
-                                continue
-                            for stock in stock_list:
-                                all_products.append({
-                                    "line": line_name,
-                                    "name": article_name,
-                                    "presentation": presentation_name,
-                                    "stock": stock['name']
-                                })
+                        stock_list = []
+                    stocks_by_presentation.append(stock_list)
+                # Assemble all products, preserving order
+                for pres_idx, (presentation, stock_list) in enumerate(zip(presentations, stocks_by_presentation)):
+                    for stock in stock_list:
+                        all_products.append({
+                            "line": line["name"],
+                            "name": article["name"],
+                            "presentation": presentation["name"],
+                            "stock": stock["name"]
+                        })
     # Remove duplicates
     df = pd.DataFrame(all_products).drop_duplicates()
     print(f"[SCRAPER] Done for store: {store_name}, products scraped: {len(df)}")
