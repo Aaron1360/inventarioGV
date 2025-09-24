@@ -4,6 +4,7 @@ import { renderInventoryTabs } from './tables.js';
 export function setupInventory() {
     const reloadBtn = document.getElementById('reloadBtn');
     const downloadBtn = document.getElementById('downloadBtn');
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const tableContainer = document.getElementById('tableContainer');
     const preTableMessage = document.getElementById('preTableMessage');
@@ -20,6 +21,7 @@ export function setupInventory() {
         // Disable buttons while scraping
         reloadBtn.disabled = true;
         downloadBtn.disabled = true;
+        if (clearCacheBtn) clearCacheBtn.disabled = true;
         if (logoutBtn) logoutBtn.disabled = true;
         try {
             const res = await fetch(`/scrape?store_name=${encodeURIComponent(storeSelect.value)}`);
@@ -29,17 +31,20 @@ export function setupInventory() {
                 if (tableContainer) tableContainer.classList.remove('d-none');
                 renderInventoryTabs(tableContainer, rawData.wholesale, rawData.retail, rawData.prices);
                 downloadBtn.disabled = false;
+                if (clearCacheBtn) clearCacheBtn.disabled = false;
                 statusMessage.textContent = '';
             } else {
                 if (preTableMessage) preTableMessage.classList.remove('d-none');
                 if (tableContainer) tableContainer.classList.add('d-none');
                 downloadBtn.disabled = true;
+                if (clearCacheBtn) clearCacheBtn.disabled = true;
                 statusMessage.textContent = 'No se encontraron datos.';
             }
         } catch (err) {
             if (preTableMessage) preTableMessage.classList.remove('d-none');
             if (tableContainer) tableContainer.classList.add('d-none');
             downloadBtn.disabled = true;
+            if (clearCacheBtn) clearCacheBtn.disabled = true;
             statusMessage.textContent = 'Error al cargar inventario.';
         }
         // Re-enable buttons
@@ -47,6 +52,36 @@ export function setupInventory() {
         if (logoutBtn) logoutBtn.disabled = false;
         hideScraperNotification();
     });
+
+    // Borrar/Clear cache functionality
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', async function() {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = 'Borrando datos en caché...';
+            showScraperNotification();
+            clearCacheBtn.disabled = true;
+            reloadBtn.disabled = true;
+            downloadBtn.disabled = true;
+            if (logoutBtn) logoutBtn.disabled = true;
+            try {
+                const res = await fetch('/clear_cache', { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    if (preTableMessage) preTableMessage.classList.remove('d-none');
+                    if (tableContainer) tableContainer.classList.add('d-none');
+                    downloadBtn.disabled = true;
+                    statusMessage.textContent = 'Inventario anterior borrado.';
+                } else {
+                    statusMessage.textContent = result.message || 'No se pudo borrar el caché.';
+                }
+            } catch (err) {
+                statusMessage.textContent = 'Error al borrar el caché.';
+            }
+            reloadBtn.disabled = false;
+            if (logoutBtn) logoutBtn.disabled = false;
+            hideScraperNotification();
+        });
+    }
 
     // Save/download Excel functionality
     if (downloadBtn) {
@@ -57,6 +92,7 @@ export function setupInventory() {
             // Disable buttons while downloading
             reloadBtn.disabled = true;
             downloadBtn.disabled = true;
+            if (clearCacheBtn) clearCacheBtn.disabled = true;
             if (logoutBtn) logoutBtn.disabled = true;
             try {
                 const res = await fetch('/save');
@@ -82,6 +118,7 @@ export function setupInventory() {
             // Re-enable buttons
             reloadBtn.disabled = false;
             downloadBtn.disabled = false;
+            if (clearCacheBtn) clearCacheBtn.disabled = false;
             if (logoutBtn) logoutBtn.disabled = false;
             hideScraperNotification();
         });

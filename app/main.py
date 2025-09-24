@@ -159,3 +159,11 @@ def root(request: Request):
         return RedirectResponse(url="/login")
     # Render homepage if authenticated
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/clear_cache")
+def clear_cache(request: Request):
+    token = get_token_from_request(request)
+    if token in user_cache:
+        del user_cache[token]
+        return JSONResponse({"success": True, "message": "Cache borrado correctamente."}, status_code=200)
+    return JSONResponse({"success": False, "message": "No hay datos en caché para borrar."}, status_code=404)
