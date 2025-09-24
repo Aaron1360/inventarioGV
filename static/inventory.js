@@ -1,6 +1,9 @@
 import { showScraperNotification, hideScraperNotification } from './scraperNotification.js';
 import { renderInventoryTabs } from './tables.js';
 
+const COOLDOWN_SECONDS = 60;
+let cooldownTimer = null;
+
 export function setupInventory() {
     const reloadBtn = document.getElementById('reloadBtn');
     const downloadBtn = document.getElementById('downloadBtn');
@@ -9,6 +12,25 @@ export function setupInventory() {
     const tableContainer = document.getElementById('tableContainer');
     const preTableMessage = document.getElementById('preTableMessage');
     if (!reloadBtn) return;
+
+    function startCooldown() {
+        let remaining = COOLDOWN_SECONDS;
+        reloadBtn.disabled = true;
+        if (logoutBtn) logoutBtn.disabled = true;
+        reloadBtn.textContent = `Actualizar (${remaining}s)`;
+        cooldownTimer = setInterval(() => {
+            remaining--;
+            if (remaining > 0) {
+                reloadBtn.textContent = `Actualizar (${remaining}s)`;
+            } else {
+                clearInterval(cooldownTimer);
+                reloadBtn.textContent = 'Actualizar';
+                reloadBtn.disabled = false;
+                if (logoutBtn) logoutBtn.disabled = false;
+            }
+        }, 1000);
+    }
+
     reloadBtn.addEventListener('click', async function() {
         const storeSelect = document.getElementById('storeSelect');
         const statusMessage = document.getElementById('statusMessage');
@@ -25,6 +47,32 @@ export function setupInventory() {
         if (logoutBtn) logoutBtn.disabled = true;
         try {
             const res = await fetch(`/scrape?store_name=${encodeURIComponent(storeSelect.value)}`);
+            if (res.status === 429) {
+                const data = await res.json();
+                statusMessage.textContent = data.error || 'Debes esperar antes de volver a actualizar.';
+                // Start cooldown with remaining seconds if provided
+                const match = /([0-9]+)\s*segundos/.exec(data.error);
+                let seconds = COOLDOWN_SECONDS;
+                if (match) seconds = parseInt(match[1]);
+                let remaining = seconds;
+                reloadBtn.disabled = true;
+                if (logoutBtn) logoutBtn.disabled = true;
+                reloadBtn.textContent = `Actualizar (${remaining}s)`;
+                if (cooldownTimer) clearInterval(cooldownTimer);
+                cooldownTimer = setInterval(() => {
+                    remaining--;
+                    if (remaining > 0) {
+                        reloadBtn.textContent = `Actualizar (${remaining}s)`;
+                    } else {
+                        clearInterval(cooldownTimer);
+                        reloadBtn.textContent = 'Actualizar';
+                        reloadBtn.disabled = false;
+                        if (logoutBtn) logoutBtn.disabled = false;
+                    }
+                }, 1000);
+                hideScraperNotification();
+                return;
+            }
             const rawData = await res.json();
             if (rawData && rawData.wholesale && Array.isArray(rawData.wholesale) && rawData.wholesale.length > 0) {
                 if (preTableMessage) preTableMessage.classList.add('d-none');
@@ -33,6 +81,7 @@ export function setupInventory() {
                 downloadBtn.disabled = false;
                 if (clearCacheBtn) clearCacheBtn.disabled = false;
                 statusMessage.textContent = '';
+                startCooldown();
             } else {
                 if (preTableMessage) preTableMessage.classList.remove('d-none');
                 if (tableContainer) tableContainer.classList.add('d-none');
@@ -47,9 +96,8 @@ export function setupInventory() {
             if (clearCacheBtn) clearCacheBtn.disabled = true;
             statusMessage.textContent = 'Error al cargar inventario.';
         }
-        // Re-enable buttons
-        reloadBtn.disabled = false;
-        if (logoutBtn) logoutBtn.disabled = false;
+        // Do not re-enable logoutBtn here; only enable after cooldown ends
+        if (!cooldownTimer) reloadBtn.disabled = false;
         hideScraperNotification();
     });
 

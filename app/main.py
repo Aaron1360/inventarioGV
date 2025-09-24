@@ -23,6 +23,7 @@ APP_PASSWORD = os.getenv("APP_PASSWORD")
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+COOLDOWN_SECONDS = 60
 
 app = FastAPI()
 
@@ -108,10 +109,20 @@ def list_stores():
 @app.get("/scrape")
 def scrape_inventory(store_name: str = Query(...), request: Request = None):
     token = get_token_from_request(request)
+    now = datetime.utcnow()
     if token not in user_cache:
-        user_cache[token] = {"df": None, "store_name": None}
+        user_cache[token] = {"df": None, "store_name": None, "last_scrape": None}
+    cache = user_cache[token]
+    # Cooldown logic
+    last_scrape = cache.get("last_scrape")
+    if last_scrape:
+        if isinstance(last_scrape, str):
+            last_scrape = datetime.fromisoformat(last_scrape)
+        elapsed = (now - last_scrape).total_seconds()
+        if elapsed < COOLDOWN_SECONDS:
+            retry_after = int(COOLDOWN_SECONDS - elapsed)
+            return JSONResponse({"success": False, "error": f"Debes esperar {retry_after} segundos antes de volver a actualizar."}, status_code=429)
     try:
-        cache = user_cache[token]
         if cache["df"] is None or cache["store_name"] != store_name:
             with authenticated_session(LOGIN_URL, APP_USERNAME, APP_PASSWORD) as session:
                 df = get_dataframe(session, store_name, POS_URL)
@@ -119,7 +130,8 @@ def scrape_inventory(store_name: str = Query(...), request: Request = None):
             cache["store_name"] = store_name
         else:
             df = cache["df"]
-        scrape_status["last_scrape"] = datetime.utcnow().isoformat()
+        cache["last_scrape"] = now.isoformat()
+        scrape_status["last_scrape"] = now.isoformat()
         scrape_status["success"] = True
         scrape_status["error"] = None
         wholesale = get_wholesale_dataframe(df).to_dict(orient="records")
@@ -127,7 +139,7 @@ def scrape_inventory(store_name: str = Query(...), request: Request = None):
         prices = get_prices_dataframe(df).to_dict(orient="records")
         return {"wholesale": wholesale, "retail": retail, "prices": prices}
     except Exception as e:
-        scrape_status["last_scrape"] = datetime.utcnow().isoformat()
+        scrape_status["last_scrape"] = now.isoformat()
         scrape_status["success"] = False
         scrape_status["error"] = str(e)
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
