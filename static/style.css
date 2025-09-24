@@ -17,14 +17,15 @@ Custom styles for login page layout and logo responsiveness
         min-height: 100vh;
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
+        /* Increased top padding for more whitespace above logo */
+        padding-top: 7vh;
     }
     .login-logo {
-        margin-top: 2rem;
-        margin-bottom: 2rem;
+        margin-top: 3rem; /* Restore to previous value for balanced spacing */
+        margin-bottom: 5.5rem;
         max-width: 90vw;
-        max-height: 120px;
+        max-height: 240px;
     }
 }
 @media (min-width: 768px) {
