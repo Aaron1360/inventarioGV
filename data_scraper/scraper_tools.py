@@ -209,10 +209,11 @@ def get_wholesale_dataframe(df):
         else:
             continue
         stock_str = use_row["stock"]
-        m = re.match(r"(CAJ|PAQ) \((\d+)\)[^\[]*\[(\d+(?:\.\d+)?)\]", stock_str)
+        m = re.match(r"(CAJ|PAQ) \((\d+)\)[^\[]*\[(\d+(?:,\d+)*(?:\.\d+)?)\]", stock_str)
         if m:
             n_per_type = float(m.group(2))
-            n_exist = float(m.group(3))
+            n_exist_str = m.group(3).replace(",", "")
+            n_exist = float(n_exist_str)
             n_cajas = round(n_exist / n_per_type, 2) if n_per_type else 0
         else:
             n_cajas = 0
@@ -243,8 +244,8 @@ def get_retail_dataframe(df):
         if not pza_row.empty:
             use_row = pza_row.iloc[0]
             stock_str = use_row["stock"]
-            m = re.match(r"PZA \(\d+\)[^\[]*\[(\d+)\]", stock_str)
-            n_piezas = int(m.group(1)) if m else 0
+            m = re.match(r"PZA \(\d+\)[^\[]*\[(\d+(?:,\d+)*(?:\.\d+)?)\]", stock_str)
+            n_piezas = int(m.group(1).replace(",", "")) if m else 0
             if n_piezas != 0:
                 result_rows.append({
                     "presentacion": row["presentation"],
