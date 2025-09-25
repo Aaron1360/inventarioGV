@@ -26,7 +26,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 COOLDOWN_SECONDS = 60
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None)
 
 # Mount static files for frontend assets
 app.mount("/static", StaticFiles(directory="static"), name="static")
