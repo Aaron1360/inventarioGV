@@ -346,13 +346,24 @@ def _select_mayoreo_presentacion(product):
             return presentacion
     return MAYOREO_PRESENTACION_PRIORITY[0]
 
+def _compute_n_cajas(almacen: str, cantidad_unitaria, cant):
+    """Compute N° CAJAS for MAYOREO rows with positive stock, else None."""
+    if almacen != "MAYOREO":
+        return None
+    if not pd.notna(cantidad_unitaria) or cantidad_unitaria <= 0:
+        return None
+    if not pd.notna(cant) or cant == 0:
+        return None
+    return cantidad_unitaria / cant
+
 def build_store_report(df: pd.DataFrame, store: str) -> pd.DataFrame:
-    """Build a tidy report for one store: NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE.
+    """Build a tidy report for one store: NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, N° CAJAS, IMPORTE.
 
     Products with no Existencias table at all (no stock data anywhere), or whose
     linea is in EXCLUDED_LINEA_IDS, are excluded. Each remaining product contributes
     exactly 2 rows for the store: MAYOREO paired with CAJ (or PAQ when CAJ isn't
-    available), MENUDEO paired with PZA.
+    available), MENUDEO paired with PZA. N° CAJAS is only populated for MAYOREO
+    rows with CANTIDAD UNITARIA > 0, as CANTIDAD UNITARIA / CANT.
     """
     rows = []
     for _, product in df.iterrows():
@@ -365,15 +376,18 @@ def build_store_report(df: pd.DataFrame, store: str) -> pd.DataFrame:
             "MENUDEO": MENUDEO_PRESENTACION,
         }
         for almacen, presentacion in almacen_presentacion.items():
+            cantidad_unitaria = product.get(f"existencia_{store}_{almacen}")
+            cant = product.get(f"presentacion_{presentacion}")
             rows.append({
                 "NOMBRE": product.get("nombre"),
                 "LINEA": product.get("linea"),
                 "SUBLINEA": product.get("sublinea"),
                 "TIENDA": store,
                 "ALMACEN": almacen,
-                "CANTIDAD UNITARIA": product.get(f"existencia_{store}_{almacen}"),
+                "CANTIDAD UNITARIA": cantidad_unitaria,
                 "PRESENTACION": presentacion,
-                "CANT": product.get(f"presentacion_{presentacion}"),
+                "CANT": cant,
+                "N° CAJAS": _compute_n_cajas(almacen, cantidad_unitaria, cant),
                 "IMPORTE": product.get(f"precio_{store}_{presentacion}"),
             })
     return pd.DataFrame(rows)

@@ -28,7 +28,7 @@ MENU = """
 Select a stage to test:
   1) Product list (id, nombre, url)
   2) Product list + detail data (raw columns)
-  3) Store report (NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE)
+  3) Store report (NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, N° CAJAS, IMPORTE)
   0) Exit
 """
 
