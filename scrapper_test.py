@@ -5,8 +5,10 @@ import pandas as pd
 
 from data_scraper.scraper_tools import (
     TARGET_STORES,
+    apply_linea_mapping,
     authenticated_session,
     build_store_report,
+    build_sublinea_to_linea_map,
     fetch_all_product_details,
     fetch_all_products,
 )
@@ -15,6 +17,7 @@ load_dotenv()
 
 LOGIN_URL = os.getenv("LOGIN_URL")
 PRODUCTS_URL = os.getenv("PRODUCTS_URL")
+LINEAS_URL = os.getenv("LINEAS_URL")
 APP_USERNAME = os.getenv("APP_USERNAME")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
 
@@ -25,7 +28,7 @@ MENU = """
 Select a stage to test:
   1) Product list (id, nombre, url)
   2) Product list + detail data (raw columns)
-  3) Store report (NOMBRE, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE)
+  3) Store report (NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE)
   0) Exit
 """
 
@@ -69,6 +72,8 @@ def main():
 
             if not details_fetched:
                 fetch_all_product_details(session, products, max_workers=MAX_WORKERS)
+                linea_map = build_sublinea_to_linea_map(session, LINEAS_URL, max_workers=MAX_WORKERS)
+                apply_linea_mapping(products, linea_map)
                 details_fetched = True
 
             df = pd.DataFrame(products)

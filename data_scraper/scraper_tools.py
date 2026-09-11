@@ -8,30 +8,30 @@ from datetime import datetime
 import unicodedata
 import pytz
 
-EXCLUDED_LINES = [
-    "IMPORTE",
-    "FLETE"
+EXCLUDED_LINEA_IDS = [
+    "IMPO",
+    "FLETE",
+    "ADMIN",
 ]
 
 BASE_URL = "https://grupogranvalle.com/sistema/index.php?"
 
 TARGET_STORES = ["11JULIO", "CEDIS", "CENTRAL"]
-TARGET_PRESENTATIONS = ["CAJ", "PZA"]
+TARGET_PRESENTATIONS = ["CAJ", "PAQ", "PZA"]
 ALMACEN_NAMES = {
     "001": "MAYOREO",
     "002": "MENUDEO",
 }
 
-# Each almacen is reported using a single, fixed presentacion.
-ALMACEN_PRESENTACION = {
-    "MAYOREO": "CAJ",
-    "MENUDEO": "PZA",
-}
+# MAYOREO uses CAJ when available, falling back to PAQ (e.g. ENCENDEDOR ECO has no CAJ).
+MAYOREO_PRESENTACION_PRIORITY = ["CAJ", "PAQ"]
+MENUDEO_PRESENTACION = "PZA"
 
 EXISTENCIAS_HEADERS = ("Tienda", "Almacen", "Cantidad Unitaria")
 PRESENTACIONES_HEADERS = ("Presentación", "Cant")
 PRECIOS_HEADERS = ("Tienda", "Pres", "Importe")
 PRODUCT_INFO_HEADERS = ("Producto",)
+SUBLINEAS_HEADERS = ("Id", "Nombre", "Est")
 
 def build_login_payload(username, password):
     """Build the payload for the login form."""
@@ -87,8 +87,6 @@ def _parse_products_table(soup: BeautifulSoup):
             continue
 
         nombre = cells[1].get_text(strip=True)
-        if nombre.upper() in EXCLUDED_LINES:
-            continue
 
         id_link = cells[0].find("a")
         url = full_url(BASE_URL, id_link["href"]) if id_link and id_link.get("href") else None
@@ -99,6 +97,31 @@ def _parse_products_table(soup: BeautifulSoup):
             "url": url,
         })
     return products
+
+def _parse_lineas_table(soup: BeautifulSoup):
+    """Parse a lineas list page into a list of {id, url} dicts."""
+    table = soup.find("table", class_="TablaColor")
+    if table is None:
+        return []
+
+    lineas = []
+    for row in table.find_all("tr"):
+        if row.find("th"):
+            continue
+
+        cells = row.find_all("td")
+        if not cells:
+            continue
+
+        id_link = cells[0].find("a")
+        if id_link is None or not id_link.get("href"):
+            continue
+
+        lineas.append({
+            "id": cells[0].get_text(strip=True),
+            "url": full_url(BASE_URL, id_link["href"]),
+        })
+    return lineas
 
 def _find_next_page_url(soup: BeautifulSoup, current_url: str):
     """Return the URL of the next page, or None if there isn't one."""
@@ -251,6 +274,59 @@ def fetch_all_products(session: requests.Session, products_url: str):
 
     return products, len(visited_urls)
 
+def fetch_all_lineas(session: requests.Session, lineas_url: str):
+    """Follow the pager and collect every linea (id, url) across all pages."""
+    lineas = []
+    visited_urls = set()
+    next_url = lineas_url
+
+    while next_url and next_url not in visited_urls:
+        visited_urls.add(next_url)
+        response = session.get(next_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        lineas.extend(_parse_lineas_table(soup))
+        next_url = _find_next_page_url(soup, next_url)
+
+    return lineas
+
+def fetch_linea_sublineas(session: requests.Session, url: str):
+    """Fetch one linea's detail page and return the list of sublinea ids it contains."""
+    response = session.get(url)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = _find_table_by_headers(soup, SUBLINEAS_HEADERS)
+    if table is None:
+        return []
+    return [
+        row.find_all("td")[0].get_text(strip=True)
+        for row in table.find_all("tr")[1:]
+        if row.find_all("td")
+    ]
+
+def build_sublinea_to_linea_map(session: requests.Session, lineas_url: str, max_workers: int = 8):
+    """Fetch every linea's sublineas and return a {sublinea_id: linea_id} map."""
+    lineas = fetch_all_lineas(session, lineas_url)
+    mapping = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_linea_id = {
+            executor.submit(fetch_linea_sublineas, session, linea["url"]): linea["id"]
+            for linea in lineas
+        }
+        for future in as_completed(future_to_linea_id):
+            linea_id = future_to_linea_id[future]
+            for sublinea_id in future.result():
+                mapping[sublinea_id] = linea_id
+
+    return mapping
+
+def apply_linea_mapping(products: list, sublinea_to_linea: dict):
+    """Add a 'linea' key to each product dict based on its sublinea, in place."""
+    for product in products:
+        product["linea"] = sublinea_to_linea.get(product.get("sublinea"))
+    return products
+
 def scrape_products(login_url: str, products_url: str, username: str, password: str):
     """Log in, scrape every products page and their detail data, and return (DataFrame, scraped_at, page_count)."""
     with authenticated_session(login_url, username, password) as session:
@@ -260,19 +336,38 @@ def scrape_products(login_url: str, products_url: str, username: str, password: 
     scraped_at = datetime.now(pytz.timezone("America/Mexico_City"))
     return pd.DataFrame(products), scraped_at, page_count
 
-def build_store_report(df: pd.DataFrame, store: str) -> pd.DataFrame:
-    """Build a tidy report for one store: NOMBRE, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE.
+def _select_mayoreo_presentacion(product):
+    """Pick MAYOREO's presentacion: CAJ if available, otherwise fall back to PAQ.
 
-    Products with no Existencias table at all (no stock data anywhere) are excluded.
-    Each remaining product contributes exactly 2 rows for the store: MAYOREO paired with CAJ, MENUDEO paired with PZA.
+    Uses pd.notna since missing columns become NaN (not None) once merged into a DataFrame.
+    """
+    for presentacion in MAYOREO_PRESENTACION_PRIORITY:
+        if pd.notna(product.get(f"presentacion_{presentacion}")):
+            return presentacion
+    return MAYOREO_PRESENTACION_PRIORITY[0]
+
+def build_store_report(df: pd.DataFrame, store: str) -> pd.DataFrame:
+    """Build a tidy report for one store: NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, IMPORTE.
+
+    Products with no Existencias table at all (no stock data anywhere), or whose
+    linea is in EXCLUDED_LINEA_IDS, are excluded. Each remaining product contributes
+    exactly 2 rows for the store: MAYOREO paired with CAJ (or PAQ when CAJ isn't
+    available), MENUDEO paired with PZA.
     """
     rows = []
     for _, product in df.iterrows():
         if not product.get("has_existencias", False):
             continue
-        for almacen, presentacion in ALMACEN_PRESENTACION.items():
+        if product.get("linea") in EXCLUDED_LINEA_IDS:
+            continue
+        almacen_presentacion = {
+            "MAYOREO": _select_mayoreo_presentacion(product),
+            "MENUDEO": MENUDEO_PRESENTACION,
+        }
+        for almacen, presentacion in almacen_presentacion.items():
             rows.append({
                 "NOMBRE": product.get("nombre"),
+                "LINEA": product.get("linea"),
                 "SUBLINEA": product.get("sublinea"),
                 "TIENDA": store,
                 "ALMACEN": almacen,
