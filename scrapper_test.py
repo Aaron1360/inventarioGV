@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from data_scraper.scraper_tools import (
+    TARGET_STORES,
     authenticated_session,
     build_store_report,
     fetch_lineas_dataframe,
@@ -14,19 +15,20 @@ LOGIN_URL = os.getenv("LOGIN_URL")
 LINEAS_URL = os.getenv("LINEAS_URL")
 APP_USERNAME = os.getenv("APP_USERNAME")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
-MAX_WORKERS = 12
+MAX_WORKERS = 6
 
 REFERENCE_HTML_URLS = {
     # "products_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=producto&accion=index",
-    # "product_CCC0235.html": "https://grupogranvalle.com/sistema/index.php?modulo=producto&accion=show&id=CCC0235",
+    "product_CCC0235.html": "https://grupogranvalle.com/sistema/index.php?modulo=producto&accion=show&id=CCC0235",
     # "lineas_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=linea&accion=index",
-    "coca_clasica_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=sublinea&accion=show&id=CCLASIC",
+    # "coca_clasica_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=sublinea&accion=show&id=CCLASIC",
 }
 
 MENU = """
 Select an option:
     1) Download reference HTML files
-    2) Build PRODUCTO/LINEA/SUBLINEA dataframe from the website
+    2) Build dataframe from the website
+        3) Build dataframe and generate one CSV per store
   0) Exit
 """
 
@@ -47,7 +49,7 @@ def main():
             if choice == "0":
                 break
 
-            if choice not in ("1", "2"):
+            if choice not in ("1", "2", "3"):
                 print("Invalid option.")
                 continue
 
@@ -62,6 +64,16 @@ def main():
                 print(f"Total lines: {len(lineas_df)}")
                 print(f"Total product rows: {len(df)}")
                 print("Saved to output_dataframe.csv")
+                continue
+
+            if choice == "3":
+                lineas_df = fetch_lineas_dataframe(session, LINEAS_URL)
+                df = build_store_report(lineas_df, session, max_workers=MAX_WORKERS)
+                for store in TARGET_STORES:
+                    store_df = df[df["TIENDA"] == store]
+                    out_path = f"output_{store}.csv"
+                    store_df.to_csv(out_path, index=False, encoding="utf-8-sig")
+                    print(f"{store}: {len(store_df)} rows saved to {out_path}")
                 continue
 
 if __name__ == "__main__":
