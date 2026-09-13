@@ -1,51 +1,44 @@
 import os
 
 from dotenv import load_dotenv
-import pandas as pd
 
 from data_scraper.scraper_tools import (
-    TARGET_STORES,
-    apply_linea_mapping,
     authenticated_session,
     build_store_report,
-    build_sublinea_to_linea_map,
-    fetch_all_product_details,
-    fetch_all_products,
+    fetch_lineas_dataframe,
 )
 
 load_dotenv()
 
 LOGIN_URL = os.getenv("LOGIN_URL")
-PRODUCTS_URL = os.getenv("PRODUCTS_URL")
 LINEAS_URL = os.getenv("LINEAS_URL")
 APP_USERNAME = os.getenv("APP_USERNAME")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
+MAX_WORKERS = 12
 
-# Number of concurrent detail-page requests; raise carefully to avoid overloading the target site.
-MAX_WORKERS = 16
+REFERENCE_HTML_URLS = {
+    # "products_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=producto&accion=index",
+    # "product_CCC0235.html": "https://grupogranvalle.com/sistema/index.php?modulo=producto&accion=show&id=CCC0235",
+    # "lineas_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=linea&accion=index",
+    "coca_clasica_page.html": "https://grupogranvalle.com/sistema/index.php?modulo=sublinea&accion=show&id=CCLASIC",
+}
 
 MENU = """
-Select a stage to test:
-  1) Product list (id, nombre, url)
-  2) Product list + detail data (raw columns)
-  3) Store report (NOMBRE, LINEA, SUBLINEA, TIENDA, ALMACEN, CANTIDAD UNITARIA, PRESENTACION, CANT, N° CAJAS, IMPORTE)
+Select an option:
+    1) Download reference HTML files
+    2) Build PRODUCTO/LINEA/SUBLINEA dataframe from the website
   0) Exit
 """
 
-def choose_store():
-    for i, store in enumerate(TARGET_STORES, start=1):
-        print(f"  {i}) {store}")
-    choice = input("Select a store: ").strip()
-    try:
-        return TARGET_STORES[int(choice) - 1]
-    except (ValueError, IndexError):
-        print(f"Invalid choice, defaulting to {TARGET_STORES[0]}.")
-        return TARGET_STORES[0]
+def download_reference_html(session):
+    for filename, url in REFERENCE_HTML_URLS.items():
+        response = session.get(url)
+        response.raise_for_status()
+        with open(filename, "w", encoding=response.encoding or "utf-8") as html_file:
+            html_file.write(response.text)
+        print(f"Saved to {filename}")
 
 def main():
-    products = None
-    details_fetched = False
-
     with authenticated_session(LOGIN_URL, APP_USERNAME, APP_PASSWORD) as session:
         while True:
             print(MENU)
@@ -54,42 +47,22 @@ def main():
             if choice == "0":
                 break
 
-            if choice not in ("1", "2", "3"):
+            if choice not in ("1", "2"):
                 print("Invalid option.")
                 continue
 
-            if products is None:
-                products, page_count = fetch_all_products(session, PRODUCTS_URL)
-                print(f"Pages scraped: {page_count}")
-
             if choice == "1":
-                df = pd.DataFrame(products)[["id", "nombre", "url"]]
-                out_path = "output_products.csv"
-                df.to_csv(out_path, index=False, encoding="utf-8-sig")
-                print(f"Total products: {len(df)}")
-                print(f"Saved to {out_path}")
+                download_reference_html(session)
                 continue
-
-            if not details_fetched:
-                fetch_all_product_details(session, products, max_workers=MAX_WORKERS)
-                linea_map = build_sublinea_to_linea_map(session, LINEAS_URL, max_workers=MAX_WORKERS)
-                apply_linea_mapping(products, linea_map)
-                details_fetched = True
-
-            df = pd.DataFrame(products)
 
             if choice == "2":
-                out_path = "output_details.csv"
-                df.to_csv(out_path, index=False, encoding="utf-8-sig")
-                print(f"Total products: {len(df)}")
-                print(f"Saved to {out_path}")
+                lineas_df = fetch_lineas_dataframe(session, LINEAS_URL)
+                df = build_store_report(lineas_df, session, max_workers=MAX_WORKERS)
+                df.to_csv("output_dataframe.csv", index=False, encoding="utf-8-sig")
+                print(f"Total lines: {len(lineas_df)}")
+                print(f"Total product rows: {len(df)}")
+                print("Saved to output_dataframe.csv")
                 continue
-
-            store = choose_store()
-            report = build_store_report(df, store)
-            out_path = f"output_report_{store}.csv"
-            report.to_csv(out_path, index=False, encoding="utf-8-sig")
-            print(f"Saved to {out_path}")
 
 if __name__ == "__main__":
     main()
