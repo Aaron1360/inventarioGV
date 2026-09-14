@@ -1,12 +1,13 @@
 # app/main.py
 import os
 import logging
+import time
 from jose import jwt
 import pytz
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Query, Request, Response, Depends, HTTPException
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -21,6 +22,10 @@ from data_scraper.scraper_tools import (
     authenticated_session,
     build_store_report,
     fetch_lineas_dataframe,
+)
+from data_scraper.dataframe_tools import (
+    dataframe_to_inventory_xlsx,
+    filter_inventory_dataframe,
 )
 
 load_dotenv()
@@ -59,7 +64,15 @@ scrape_status = {
 user_cache = {}
 scrape_jobs = {}
 scrape_jobs_lock = Lock()
+last_manual_scrape = {}
 logger = logging.getLogger(__name__)
+
+def _get_inventory_dataframe(username: str):
+    """Return the dataframe from the primary cache or completed job backup."""
+    dataframe = user_cache.get(username)
+    if dataframe is not None:
+        return dataframe
+    return scrape_jobs.get(username, {}).get("dataframe")
 
 def _dataframe_records(dataframe) -> list[dict[str, Any]]:
     """Convert dataframe values to JSON-safe records."""
@@ -94,6 +107,7 @@ def _run_inventory_scrape(username: str):
                 "message": "Inventario listo.",
                 "total": len(dataframe),
                 "built_at": datetime.now(pytz.timezone("America/Mexico_City")).isoformat(),
+                "dataframe": dataframe,
             }
     except Exception as error:
         logger.exception("Scraper: failed for user %s", username)
@@ -194,8 +208,19 @@ def root(request: Request):
 @app.post("/api/inventory/scrape")
 def scrape_inventory(username: str = Depends(get_authenticated_username)):
     """Scrape and return the complete inventory dataframe without filters."""
+    now = time.monotonic()
+    with scrape_jobs_lock:
+        elapsed = now - last_manual_scrape.get(username, 0)
+        remaining = max(0, int(COOLDOWN_SECONDS - elapsed))
+        if remaining > 0:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Espera {remaining} segundos antes de actualizar nuevamente.",
+                headers={"Retry-After": str(remaining)},
+            )
+        last_manual_scrape[username] = now
     _start_inventory_scrape(username)
-    dataframe = user_cache.get(username)
+    dataframe = _get_inventory_dataframe(username)
     if dataframe is None:
         return inventory_status(username)
     return {
@@ -207,8 +232,13 @@ def scrape_inventory(username: str = Depends(get_authenticated_username)):
 @app.get("/api/inventory")
 def get_inventory(username: str = Depends(get_authenticated_username)):
     """Return the last complete dataframe scraped for the current user."""
-    dataframe = user_cache.get(username)
+    dataframe = _get_inventory_dataframe(username)
     if dataframe is None:
+        logger.error(
+            "Inventory cache missing for user %s; scrape job status is %s",
+            username,
+            scrape_jobs.get(username, {}).get("status", "unknown"),
+        )
         raise HTTPException(
             status_code=404,
             detail="No inventory dataframe is loaded. Run POST /api/inventory/scrape first.",
@@ -219,23 +249,60 @@ def get_inventory(username: str = Depends(get_authenticated_username)):
         "data": _dataframe_records(dataframe),
     }
 
+@app.get("/api/inventory/export")
+def export_inventory(
+    tienda: str,
+    linea: str | None = None,
+    sublinea: str | None = None,
+    username: str = Depends(get_authenticated_username),
+):
+    """Export the current filtered inventory into three Excel worksheets."""
+    dataframe = _get_inventory_dataframe(username)
+    if dataframe is None:
+        raise HTTPException(status_code=404, detail="No inventory dataframe is loaded.")
+    try:
+        filtered = filter_inventory_dataframe(
+            dataframe,
+            tienda=tienda,
+            linea=linea or None,
+            sublinea=sublinea or None,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    workbook = dataframe_to_inventory_xlsx(filtered)
+    return StreamingResponse(
+        workbook,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=inventario.xlsx"
+        },
+    )
+
 @app.get("/api/inventory/status")
 def inventory_status(username: str = Depends(get_authenticated_username)):
     """Return whether a complete unfiltered dataframe is available."""
-    dataframe = user_cache.get(username)
+    dataframe = _get_inventory_dataframe(username)
     job = scrape_jobs.get(username, {})
+    job_status = job.get("status", "idle")
+    if job_status == "completed" and dataframe is None:
+        job_status = "error"
+        job = {
+            **job,
+            "message": "El scraper terminó, pero el dataframe no quedó disponible.",
+        }
     return {
         "loaded": dataframe is not None,
-        "status": job.get("status", "idle"),
+        "status": job_status,
         "message": job.get("message", ""),
         "total": job.get("total", len(dataframe) if dataframe is not None else 0),
         "built_at": job.get("built_at"),
+        "cooldown": COOLDOWN_SECONDS,
     }
 
 @app.get("/api/inventory/stores")
 def inventory_stores(username: str = Depends(get_authenticated_username)):
     """Return the stores present in the current user's dataframe."""
-    dataframe = user_cache.get(username)
+    dataframe = _get_inventory_dataframe(username)
     if dataframe is None:
         raise HTTPException(
             status_code=404,

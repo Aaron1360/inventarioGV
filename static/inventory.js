@@ -7,6 +7,7 @@ let scrapeStartedThisSession = sessionStorage.getItem('inventoryScrapeStarted') 
 let rebuildPromptShown = false;
 let lastLoggedScrapeStatus = null;
 let statusRequestErrorLogged = false;
+let updateCooldownTimer = null;
 
 function displayBuiltAt(timestamp) {
     const element = document.getElementById('lastBuiltAt');
@@ -20,6 +21,30 @@ function setInventoryButtonsDisabled(disabled) {
         const button = document.getElementById(id);
         if (button) button.disabled = disabled;
     });
+    if (!disabled && updateCooldownTimer) {
+        const reloadButton = document.getElementById('reloadBtn');
+        if (reloadButton) reloadButton.disabled = true;
+    }
+}
+
+function startUpdateCooldown(seconds) {
+    const button = document.getElementById('reloadBtn');
+    if (!button) return;
+    if (updateCooldownTimer) clearInterval(updateCooldownTimer);
+    let remaining = seconds;
+    button.disabled = true;
+    button.textContent = `Actualizar (${remaining}s)`;
+    updateCooldownTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(updateCooldownTimer);
+            updateCooldownTimer = null;
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Actualizar';
+            return;
+        }
+        button.textContent = `Actualizar (${remaining}s)`;
+    }, 1000);
 }
 
 function showScrapingCard() {
@@ -28,6 +53,15 @@ function showScrapingCard() {
     const text = document.getElementById('preTableText');
     if (title) title.textContent = 'Preparando inventario';
     if (text) text.textContent = 'Accediendo a https://grupogranvalle.com/sistema/';
+    document.getElementById('preTableMessage')?.classList.remove('d-none');
+}
+
+function showScrapeError(message) {
+    document.getElementById('scraperSpinner')?.classList.add('d-none');
+    const title = document.getElementById('preTableTitle');
+    const text = document.getElementById('preTableText');
+    if (title) title.textContent = 'No se pudo cargar el inventario';
+    if (text) text.textContent = message;
     document.getElementById('preTableMessage')?.classList.remove('d-none');
 }
 
@@ -255,6 +289,7 @@ async function pollScrapeStatus() {
             if (statusChanged) console.error('[Inventario] El scraper falló:', status.message);
             lastLoggedScrapeStatus = status.status;
             document.getElementById('statusMessage').textContent = status.message || 'No se pudo cargar el inventario.';
+            showScrapeError(status.message || 'No se pudo cargar el inventario.');
             clearInterval(statusTimer);
             return;
         }
@@ -265,10 +300,21 @@ async function pollScrapeStatus() {
                 rebuildPromptShown = true;
                 const rebuild = window.confirm('Ya existe un inventario cargado. ¿Deseas reconstruir el dataframe?');
                 if (rebuild) {
+                    const rebuildResponse = await fetch('/api/inventory/scrape', { method: 'POST' });
+                    if (rebuildResponse.status === 429) {
+                        const error = await rebuildResponse.json();
+                        const retryAfter = Number(rebuildResponse.headers.get('Retry-After')) || 60;
+                        startUpdateCooldown(retryAfter);
+                        document.getElementById('statusMessage').textContent = error.detail || 'Espera antes de reconstruir el dataframe.';
+                        rebuildPromptShown = false;
+                        return;
+                    }
+                    if (!rebuildResponse.ok) {
+                        throw new Error('No se pudo iniciar la reconstrucción del dataframe.');
+                    }
                     scrapeStartedThisSession = true;
                     clearRenderedInventory();
                     showScrapingCard();
-                    await fetch('/api/inventory/scrape', { method: 'POST' });
                     clearInterval(statusTimer);
                     statusTimer = setInterval(pollScrapeStatus, 1000);
                     return;
@@ -283,6 +329,9 @@ async function pollScrapeStatus() {
                 document.getElementById('storeFilterSection')?.classList.remove('d-none');
                 document.getElementById('actionButtons')?.classList.remove('d-none');
             }
+            if (!status.loaded) {
+                throw new Error(status.message || 'El dataframe no está disponible.');
+            }
             await loadInventory();
             sessionStorage.removeItem('inventoryScrapeStarted');
         }
@@ -292,6 +341,7 @@ async function pollScrapeStatus() {
             console.error('[Inventario] No se pudo consultar el estado del scraper.', error);
             statusRequestErrorLogged = true;
         }
+        showScrapeError(error.message || 'No se pudo cargar el inventario.');
         document.getElementById('statusMessage').textContent = 'No se pudo consultar el estado del inventario.';
     }
 }
@@ -315,46 +365,56 @@ export function setupInventory() {
     sublineSelect?.addEventListener('change', () => renderInventory(inventoryData, storeSelect.value));
 
     reloadButton?.addEventListener('click', async () => {
-        showScrapingCard();
-        setInventoryButtonsDisabled(true);
-        await fetch('/api/inventory/scrape', { method: 'POST' });
-        scrapeStartedThisSession = true;
-        clearInterval(statusTimer);
-        statusTimer = setInterval(pollScrapeStatus, 1000);
-        await pollScrapeStatus();
+        lastLoggedScrapeStatus = null;
+        try {
+            const response = await fetch('/api/inventory/scrape', { method: 'POST' });
+            if (response.status === 429) {
+                const error = await response.json();
+                const retryAfter = Number(response.headers.get('Retry-After')) || 60;
+                startUpdateCooldown(retryAfter);
+                document.getElementById('statusMessage').textContent = error.detail || 'Espera antes de actualizar nuevamente.';
+                return;
+            }
+            if (!response.ok) throw new Error('No se pudo iniciar el scraper.');
+            const scrapeResult = await response.json();
+            startUpdateCooldown(Number(scrapeResult.cooldown) || 60);
+            clearRenderedInventory();
+            showScrapingCard();
+            setInventoryButtonsDisabled(true);
+            scrapeStartedThisSession = true;
+            clearInterval(statusTimer);
+            statusTimer = setInterval(pollScrapeStatus, 1000);
+            await pollScrapeStatus();
+        } catch (error) {
+            setInventoryButtonsDisabled(false);
+            document.getElementById('statusMessage').textContent = error.message;
+        }
     });
 
     downloadButton?.addEventListener('click', () => {
         const store = storeSelect.value;
         const line = lineSelect?.value || '';
         const subline = sublineSelect?.value || '';
-        const rows = inventoryData.filter(row =>
-            row.TIENDA === store &&
-            (!line || row.LINEA === line) &&
-            (!subline || row.SUBLINEA === subline)
-        );
-        if (!rows.length) return;
-        const columns = ['PRODUCTO', 'LINEA', 'SUBLINEA', 'TIENDA', 'ALMACEN', 'CANTIDAD UNITARIA', 'PRESENTACION', 'CANT', 'N° CAJAS', 'IMPORTE'];
-        const csv = [columns, ...rows.map(row => columns.map(column => {
-            const value = row[column] ?? '';
-            return `"${String(value).replaceAll('"', '""')}"`;
-        }))].map(row => row.join(',')).join('\n');
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-        link.download = `inventario_${store}.csv`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        if (!store) return;
+        const params = new URLSearchParams({ tienda: store });
+        if (line) params.set('linea', line);
+        if (subline) params.set('sublinea', subline);
+        fetch(`/api/inventory/export?${params.toString()}`)
+            .then(response => {
+                if (!response.ok) throw new Error('No se pudo generar el archivo Excel.');
+                return response.blob();
+            })
+            .then(blob => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `inventario_${store}.xlsx`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            })
+            .catch(error => {
+                document.getElementById('statusMessage').textContent = error.message;
+            });
     });
-
-    /*
-    // Legacy manual refresh implementation retained for reference.
-    reloadButton?.addEventListener('click', async () => {
-        await fetch('/api/inventory/scrape', { method: 'POST' });
-        clearInterval(statusTimer);
-        statusTimer = setInterval(pollScrapeStatus, 1000);
-        await pollScrapeStatus();
-    });
-    */
 
     pollScrapeStatus();
     statusTimer = setInterval(pollScrapeStatus, 1000);

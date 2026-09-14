@@ -1,8 +1,11 @@
 """Utilities for filtering the scraped inventory dataframe."""
 
 from collections.abc import Iterable
+from io import BytesIO
 
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font
 
 
 INVENTORY_COLUMNS = (
@@ -91,3 +94,47 @@ def get_filter_options(
         column: sorted(filtered[column].dropna().unique().tolist())
         for column in ("LINEA", "SUBLINEA", "ALMACEN")
     }
+
+
+def dataframe_to_inventory_xlsx(dataframe: pd.DataFrame) -> BytesIO:
+    """Create an Excel workbook with MAYOREO, MENUDEO, and PRECIOS sheets."""
+    workbook = Workbook()
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
+
+    views = {
+        "MAYOREO": (
+            dataframe[dataframe["ALMACEN"] == "MAYOREO"]
+            [["PRODUCTO", "CANTIDAD UNITARIA", "CANT", "N° CAJAS"]]
+        ),
+        "MENUDEO": (
+            dataframe[dataframe["ALMACEN"] == "MENUDEO"]
+            [["PRODUCTO", "CANTIDAD UNITARIA", "IMPORTE"]]
+        ),
+        "PRECIOS": (
+            dataframe[
+                (dataframe["ALMACEN"] == "MAYOREO")
+                & dataframe["IMPORTE"].notna()
+            ]
+            .drop_duplicates(subset=["PRODUCTO"])
+            [["PRODUCTO", "IMPORTE"]]
+        ),
+    }
+
+    for sheet_name, view in views.items():
+        sheet = workbook.create_sheet(sheet_name)
+        sheet.append(list(view.columns))
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+        for row in view.itertuples(index=False, name=None):
+            sheet.append([None if pd.isna(value) else value for value in row])
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for column_cells in sheet.columns:
+            width = max(len(str(cell.value or "")) for cell in column_cells) + 2
+            sheet.column_dimensions[column_cells[0].column_letter].width = min(width, 40)
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
