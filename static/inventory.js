@@ -8,12 +8,26 @@ let rebuildPromptShown = false;
 let lastLoggedScrapeStatus = null;
 let statusRequestErrorLogged = false;
 let updateCooldownTimer = null;
+let dataframeBuiltAt = null;
 
 function displayBuiltAt(timestamp) {
     const element = document.getElementById('lastBuiltAt');
     if (!element || !timestamp) return;
+    dataframeBuiltAt = timestamp;
     const date = new Date(timestamp);
     element.textContent = `Última actualización: ${date.toLocaleString()}`;
+}
+
+function buildInventoryFilename(store) {
+    const date = new Date(dataframeBuiltAt || Date.now());
+    const datePart = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+    const hour = date.getHours() % 12 || 12;
+    const timePart = `${String(hour).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}${date.getHours() >= 12 ? 'PM' : 'AM'}`;
+    return `inventario_${store}_${datePart}_${timePart}.xlsx`;
 }
 
 function setInventoryButtonsDisabled(disabled) {
@@ -407,7 +421,7 @@ export function setupInventory() {
             .then(blob => {
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = `inventario_${store}.xlsx`;
+                link.download = buildInventoryFilename(store);
                 link.click();
                 URL.revokeObjectURL(link.href);
             })
