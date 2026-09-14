@@ -136,6 +136,11 @@ Custom styles for tables
     border: 1.5px solid #ffe066;
     box-shadow: none;
 }
+
+.table-striped > tbody > tr.cajas-highlight-row > td {
+    font-weight: 600;
+}
+
 .pagination-controls {
     margin-top: 0.5rem;
     gap: 0.5rem;

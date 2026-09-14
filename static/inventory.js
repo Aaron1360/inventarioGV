@@ -257,6 +257,10 @@ function buildTable(rows, columns) {
     const body = document.createElement('tbody');
     rows.forEach(row => {
         const tr = document.createElement('tr');
+        const cajas = Number.parseFloat(row['N° CAJAS']);
+        if (columns.includes('N° CAJAS') && Number.isFinite(cajas) && cajas > 0) {
+            tr.classList.add('cajas-highlight-row');
+        }
         columns.forEach(column => {
             const cell = document.createElement('td');
             const value = row[column];
