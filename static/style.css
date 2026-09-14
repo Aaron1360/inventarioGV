@@ -1,13 +1,41 @@
 .app-header {
+    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     padding-top: 0;
+    position: relative;
+    width: 100%;
+}
+
+.header-actions {
+    padding-top: 1rem;
+    justify-self: start;
+}
+
+.header-title {
+    grid-column: 2;
+    justify-self: center;
+}
+
+.app-header #logoutBtn {
+    justify-self: end;
+    position: static !important;
+}
+
+.last-built-at {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
 }
 
 .filter-row {
     align-items: end;
+    box-sizing: border-box;
     display: grid;
     gap: 0.75rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-bottom: 1rem;
+    padding-top: 1rem;
+    width: 100%;
 }
 
 .filter-field {
@@ -31,7 +59,7 @@
 }
 
 #actionButtons {
-    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 
 .scraper-card {
@@ -58,6 +86,28 @@ Custom styles for login page layout and logo responsiveness
     height: auto;
 }
 @media (max-width: 767.98px) {
+    .app-header {
+        display: block;
+        min-height: 4rem;
+    }
+
+    .header-actions {
+        margin-top: 3.5rem;
+    }
+
+    .header-title {
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+    }
+
+    .app-header #logoutBtn {
+        position: absolute !important;
+        right: 0;
+        top: 0;
+    }
+
     .login-outer {
         min-height: 100vh;
         display: flex;
@@ -173,4 +223,67 @@ Custom styles for tables
 .table-scroll-wrapper::-webkit-scrollbar-thumb {
     background: #e0e0e0;
     border-radius: 1rem;
+}
+
+@media (max-width: 767.98px) {
+    body {
+        overflow-x: hidden;
+    }
+
+    .container {
+        max-width: 100%;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    .last-built-at {
+        padding-right: 0;
+        text-align: center !important;
+    }
+
+    #logoutBtn .logout-label {
+        display: none;
+    }
+
+    #logoutBtn .bi {
+        margin-right: 0 !important;
+    }
+
+    .filter-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .filter-field {
+        grid-template-columns: 5rem minmax(0, 1fr);
+    }
+
+    #actionButtons {
+        margin-top: 0.75rem;
+    }
+
+    #tableContainer {
+        overflow-x: auto;
+        padding: 0.5rem !important;
+    }
+
+    #tableContainer .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    #tableContainer .nav-tabs .nav-item {
+        flex: 0 0 auto;
+    }
+
+    #tableContainer .table {
+        min-width: 0;
+        width: 100%;
+    }
+
+    #tableContainer .table th,
+    #tableContainer .table td {
+        white-space: nowrap;
+    }
 }

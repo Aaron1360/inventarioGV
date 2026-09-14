@@ -12,15 +12,8 @@
     <div class="container py-2">
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8">
-                <div class="app-header position-relative mb-3">
-                    <h2 class="text-warning fw-bold mb-1 text-center">Inventario GV</h2>
-                    <div id="lastBuiltAt" class="small text-dark text-center"></div>
-                    <button id="logoutBtn" class="btn btn-outline-danger position-absolute end-0 top-0 mt-1 me-1" title="Cerrar sesión">
-                        <i class="bi bi-box-arrow-right me-1"></i>Salir
-                    </button>
-                </div>
-                <div class="mb-4">
-                    <div id="actionButtons" class="d-flex flex-wrap gap-2 d-none mt-2">
+                <div class="app-header">
+                    <div id="actionButtons" class="header-actions d-flex flex-wrap gap-3 d-none">
                         <button id="reloadBtn" class="btn btn-warning" title="Actualizar inventario">
                             <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
                         </button>
@@ -28,6 +21,15 @@
                             <i class="bi bi-download me-1"></i>Guardar
                         </button>
                     </div>
+                    <div class="header-title">
+                        <h2 class="text-warning fw-bold mb-1 text-center">Inventario GV</h2>
+                    </div>
+                    <button id="logoutBtn" class="btn btn-outline-danger position-absolute end-0 top-0 mt-1 me-1" title="Cerrar sesión">
+                        <i class="bi bi-box-arrow-right me-1"></i><span class="logout-label">Salir</span>
+                    </button>
+                </div>
+                <div id="lastBuiltAt" class="last-built-at small text-dark text-center"></div>
+                <div class="mb-4">
                     <div id="storeFilterSection" class="filter-row d-none mt-2">
                         <div class="filter-field">
                             <label for="storeSelect" class="form-label mb-0">Sucursal:</label>

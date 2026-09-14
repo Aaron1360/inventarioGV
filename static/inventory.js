@@ -98,6 +98,7 @@ function renderInventory(rows, store) {
     if (!container) return;
     const line = document.getElementById('lineSelect')?.value || '';
     const subline = document.getElementById('sublineSelect')?.value || '';
+    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
     if (!store) {
         container.replaceChildren();
         container.classList.add('d-none');
@@ -120,13 +121,17 @@ function renderInventory(rows, store) {
             id: 'mayoreo',
             label: 'MAYOREO',
             warehouse: 'MAYOREO',
-            columns: ['PRODUCTO', 'CANTIDAD UNITARIA', 'CANT', 'N° CAJAS'],
+            columns: isMobile
+                ? ['PRODUCTO', 'N° CAJAS']
+                : ['PRODUCTO', 'CANTIDAD UNITARIA', 'CANT', 'N° CAJAS'],
         },
         {
             id: 'menudeo',
             label: 'MENUDEO',
             warehouse: 'MENUDEO',
-            columns: ['PRODUCTO', 'CANTIDAD UNITARIA', 'IMPORTE'],
+            columns: isMobile
+                ? ['PRODUCTO', 'CANTIDAD UNITARIA']
+                : ['PRODUCTO', 'CANTIDAD UNITARIA', 'IMPORTE'],
         },
         {
             id: 'precios',
@@ -381,6 +386,16 @@ export function setupInventory() {
         renderInventory(inventoryData, storeSelect.value);
     });
     sublineSelect?.addEventListener('change', () => renderInventory(inventoryData, storeSelect.value));
+
+    const mobileMediaQuery = window.matchMedia('(max-width: 767.98px)');
+    const rerenderForViewport = () => {
+        renderInventory(inventoryData, storeSelect.value);
+    };
+    if (mobileMediaQuery.addEventListener) {
+        mobileMediaQuery.addEventListener('change', rerenderForViewport);
+    } else {
+        mobileMediaQuery.addListener(rerenderForViewport);
+    }
 
     reloadButton?.addEventListener('click', async () => {
         lastLoggedScrapeStatus = null;
