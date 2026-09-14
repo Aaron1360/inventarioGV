@@ -34,6 +34,8 @@ LINEAS_URL = os.getenv("LINEAS_URL")
 APP_USERNAME = os.getenv("APP_USERNAME")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
 SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 COOLDOWN_SECONDS = 60
@@ -174,7 +176,8 @@ def get_authenticated_username(request: Request):
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
         return username
-    except JWTError:
+    except JWTError as error:
+        logger.warning("Auth failed: %s (cookie_present=%s)", error, "access_token" in request.cookies)
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
 @app.get("/login")
@@ -194,7 +197,14 @@ async def login(username: str = Form(...), password: str = Form(...), response: 
         access_token = create_access_token({"sub": username})
         _start_inventory_scrape(username)
         response = JSONResponse({"success": True, "message": "Login successful", "access_token": access_token})
-        response.set_cookie(key="access_token", value=access_token, httponly=True, max_age=ACCESS_TOKEN_EXPIRE_MINUTES*60)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
         return response
     else:
         print("Login failed: credentials do not match.")
