@@ -87,19 +87,21 @@ Custom styles for login page layout and logo responsiveness
 }
 @media (max-width: 767.98px) {
     .app-header {
-        display: block;
-        min-height: 4rem;
+        align-items: stretch;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
     }
 
     .header-actions {
-        margin-top: 3.5rem;
+        align-items: flex-start;
+        flex: 0 0 auto;
+        margin-top: 0.5rem;
+        order: 2;
     }
 
     .header-title {
-        left: 0;
-        position: absolute;
-        right: 0;
-        top: 0;
+        order: 1;
     }
 
     .app-header #logoutBtn {
