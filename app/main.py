@@ -43,9 +43,18 @@ app = FastAPI(docs_url=None, redoc_url=None)
 # Mount static files for frontend assets
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000,http://localhost:8000,https://inventario-gv.scc-reboot.com",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","http://localhost:8000"],  # Frontend origin
+    allow_origins=ALLOWED_ORIGINS,  # Frontend origin(s)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
