@@ -1,4 +1,5 @@
 import requests
+import logging
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ MENUDEO_PRESENTACION = "PZA"
 EXISTENCIAS_HEADERS = ("Tienda", "Almacen", "Cantidad Unitaria")
 PRESENTACIONES_HEADERS = ("Presentación", "Cant")
 PRECIOS_HEADERS = ("Tienda", "Pres", "Importe")
+logger = logging.getLogger(__name__)
 
 
 def build_login_payload(username, password):
@@ -314,6 +316,7 @@ def build_store_report(
     ]
     if not sublineas:
         raise RuntimeError("No sublineas found for the fetched lineas")
+    logger.info("Scraper: fetched %d sublines", len(sublineas))
 
     def fetch_sublinea_productos(linea_and_sublinea):
         linea, sublinea = linea_and_sublinea
@@ -331,6 +334,7 @@ def build_store_report(
             product_targets.extend(
                 (linea, sublinea, producto) for producto in productos
             )
+    logger.info("Scraper: found %d product targets", len(product_targets))
 
     def fetch_target_detail(target):
         linea, sublinea, producto = target
@@ -383,6 +387,7 @@ def build_store_report(
 
     if not rows:
         raise RuntimeError("No productos found for the fetched sublineas")
+    logger.info("Scraper: built %d inventory rows", len(rows))
     return pd.DataFrame(rows, columns=[
         "PRODUCTO",
         "LINEA",

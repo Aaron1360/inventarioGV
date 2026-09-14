@@ -1,3 +1,48 @@
+.app-header {
+    padding-top: 0;
+}
+
+.filter-row {
+    align-items: end;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 1rem;
+}
+
+.filter-field {
+    align-items: center;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.filter-field .form-label {
+    flex: 0 0 auto;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.filter-field .form-select {
+    min-width: 0;
+    width: 100%;
+}
+
+#actionButtons {
+    margin-top: 0.5rem;
+}
+
+.scraper-card {
+    border-top: 4px solid #fdb338;
+    max-width: min(90vw, 420px);
+    padding: 2rem;
+    text-align: center;
+    width: 100%;
+    z-index: 2001;
+}
+
 /*
 This file is now empty. All styling is handled by Bootstrap 5 via CDN.
 If you need custom overrides, add them below.

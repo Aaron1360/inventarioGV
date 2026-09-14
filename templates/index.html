@@ -9,35 +9,44 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-light min-vh-100">
-    <div id="scraperNotification" class="alert alert-warning text-center position-fixed top-0 start-0 w-100 d-none" style="z-index:9999;">Cargando inventario, por favor espera...</div>
-    <div class="container py-4">
+    <div class="container py-2">
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8">
-                <div class="d-flex align-items-center justify-content-center position-relative mb-4">
-                    <h2 class="text-warning fw-bold mb-0 mx-auto text-center w-100">Inventario GV</h2>
+                <div class="app-header position-relative mb-3">
+                    <h2 class="text-warning fw-bold mb-1 text-center">Inventario GV</h2>
+                    <div id="lastBuiltAt" class="small text-success text-center"></div>
                     <button id="logoutBtn" class="btn btn-outline-danger position-absolute end-0 top-0 mt-1 me-1" title="Cerrar sesión">
                         <i class="bi bi-box-arrow-right me-1"></i>Salir
                     </button>
                 </div>
                 <div class="mb-4">
-                    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
-                        <label for="storeSelect" class="form-label mb-0 me-2">Sucursal:</label>
-                        <select id="storeSelect" class="form-select w-auto flex-grow-1"></select>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
+                    <div id="actionButtons" class="d-flex flex-wrap gap-2 d-none mt-2">
                         <button id="reloadBtn" class="btn btn-warning" title="Actualizar inventario">
                             <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
                         </button>
                         <button id="downloadBtn" class="btn btn-outline-success" disabled title="Descargar archivo">
                             <i class="bi bi-download me-1"></i>Guardar
                         </button>
-                        <button id="clearCacheBtn" class="btn btn-outline-secondary" disabled title="Borrar datos en caché">
-                            <i class="bi bi-trash me-1"></i>Borrar
-                        </button>
+                    </div>
+                    <div id="storeFilterSection" class="filter-row d-none mt-2">
+                        <div class="filter-field">
+                            <label for="storeSelect" class="form-label mb-0">Sucursal:</label>
+                            <select id="storeSelect" class="form-select"></select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="lineSelect" class="form-label mb-0">Línea:</label>
+                            <select id="lineSelect" class="form-select"></select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="sublineSelect" class="form-label mb-0">Sublínea:</label>
+                            <select id="sublineSelect" class="form-select"></select>
+                        </div>
                     </div>
                 </div>
-                <div id="preTableMessage" class="alert alert-info text-center mt-3">
-                    Para ver el inventario, selecciona una sucursal y presiona el botón <b>Actualizar</b>.
+                <div id="preTableMessage" class="scraper-card alert alert-info text-center shadow-sm mx-auto mt-3">
+                    <div id="scraperSpinner" class="spinner-border text-warning mb-3" role="status" aria-hidden="true"></div>
+                    <h5 id="preTableTitle" class="mb-2">Preparando inventario</h5>
+                    <p id="preTableText" class="mb-0">Accediendo a https://grupogranvalle.com/sistema/</p>
                 </div>
                 <div id="storeTitle" class="h5 text-center text-primary mb-3 d-none"></div>
                 <div id="tableContainer" class="table-responsive bg-white rounded shadow-sm p-3 d-none">
@@ -45,24 +54,6 @@
                 <div id="statusMessage" class="mt-3 text-center"></div>
             </div>
         </div>
-    </div>
-    <!-- Borrar confirmation modal -->
-    <div class="modal fade" id="clearCacheModal" tabindex="-1" aria-labelledby="clearCacheModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="clearCacheModalLabel">Confirmar borrado</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-          </div>
-          <div class="modal-body" id="clearCacheModalBody">
-            ¿Estás seguro de que deseas borrar los datos de la sucursal?
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-danger" id="confirmClearCacheBtn">Borrar</button>
-          </div>
-        </div>
-      </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="/static/main.js"></script>

@@ -1,20 +1,27 @@
-// Fetch and populate store dropdown
-export function setupStoreDropdown() {
-    const storeSelect = document.getElementById('storeSelect');
-    async function fetchStores() {
-        try {
-            const res = await fetch('/stores');
-            const stores = await res.json();
-            if (Array.isArray(stores) && stores.length > 0) {
-                storeSelect.innerHTML = stores.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
-            } else {
-                storeSelect.innerHTML = '<option value="">No hay sucursales</option>';
-            }
-        } catch (err) {
-            storeSelect.innerHTML = '<option value="">Error al cargar sucursales</option>';
+export async function refreshStoreDropdown() {
+    const select = document.getElementById('storeSelect');
+    if (!select) return [];
+    try {
+        const response = await fetch('/api/inventory/stores');
+        if (!response.ok) return [];
+        const { stores } = await response.json();
+        select.innerHTML = '<option value="">Selecciona una sucursal</option>';
+        stores.forEach(store => {
+            const option = document.createElement('option');
+            option.value = store;
+            option.textContent = store;
+            select.appendChild(option);
+        });
+        if (stores.length > 0) {
+            select.value = stores[0];
         }
+        return stores;
+    } catch {
+        select.innerHTML = '<option value="">Las sucursales no están disponibles</option>';
+        return [];
     }
-    if (storeSelect) {
-        fetchStores();
-    }
+}
+
+export async function setupStoreDropdown() {
+    await refreshStoreDropdown();
 }

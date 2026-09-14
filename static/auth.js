@@ -8,12 +8,15 @@ export function setupAuth() {
             loginMessage.textContent = '';
             const formData = new FormData(loginForm);
             try {
+                console.info('[Inventario] Enviando credenciales al servidor.');
                 const response = await fetch('/login', {
                     method: 'POST',
                     body: formData
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
+                    sessionStorage.setItem('inventoryScrapeStarted', 'true');
+                    console.info('[Inventario] Login correcto. Scraper iniciado en segundo plano.');
                     loginMessage.textContent = '¡Inicio de sesión exitoso! Redirigiendo...';
                     loginMessage.classList.remove('error');
                     loginMessage.classList.add('success');
@@ -21,11 +24,13 @@ export function setupAuth() {
                         window.location.href = '/';
                     }, 1200);
                 } else {
+                    console.warn('[Inventario] Login rechazado.');
                     loginMessage.textContent = result.message || 'Error al iniciar sesión.';
                     loginMessage.classList.remove('success');
                     loginMessage.classList.add('error');
                 }
             } catch (err) {
+                console.error('[Inventario] Error de red durante el login.', err);
                 loginMessage.textContent = 'Error de red.';
                 loginMessage.classList.remove('success');
                 loginMessage.classList.add('error');
