@@ -46,4 +46,3 @@ docker run -p 8000:8000 gv_inventario
 ```
 
 ---
-Feel free to customize and extend as needed!
